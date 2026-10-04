@@ -2,21 +2,49 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/games/game2048/domain/game2048_engine.dart';
 
-class Game2048Screen extends StatefulWidget {
+const _id = '2048';
+
+class Game2048Screen extends ConsumerStatefulWidget {
   const Game2048Screen({super.key});
 
   @override
-  State<Game2048Screen> createState() => _Game2048ScreenState();
+  ConsumerState<Game2048Screen> createState() => _Game2048ScreenState();
 }
 
-class _Game2048ScreenState extends State<Game2048Screen> {
+class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
   final _rng = Random();
   final _focus = FocusNode();
-  late Board2048 _board = Board2048.start(rng: _rng);
-  int _best = 0;
+  late final ProgressStore _store = ref.read(progressStoreProvider);
+  late Board2048 _board;
+  bool _wonRecorded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = _store.loadState(_id);
+    Board2048? restored;
+    if (saved != null) {
+      try {
+        restored = Board2048.fromJson(saved);
+      } on Object {
+        restored = null;
+      }
+    }
+    if (restored != null && restored.canMove) {
+      _board = restored;
+      _wonRecorded = restored.reached2048;
+    } else {
+      _board = Board2048.start(rng: _rng);
+      _store
+        ..recordStart(_id)
+        ..saveState(_id, _board.toJson());
+    }
+  }
 
   @override
   void dispose() {
@@ -25,15 +53,33 @@ class _Game2048ScreenState extends State<Game2048Screen> {
   }
 
   void _move(Dir d) {
+    var moved = false;
     setState(() {
-      if (_board.move(d)) {
-        _board.spawn(_rng);
-        _best = max(_best, _board.score);
-      }
+      moved = _board.move(d);
+      if (moved) _board.spawn(_rng);
     });
+    if (!moved) return;
+    _store.recordScore(_id, _board.score);
+    if (_board.reached2048 && !_wonRecorded) {
+      _wonRecorded = true;
+      _store.recordWin(_id, score: _board.score);
+    }
+    if (_board.canMove) {
+      _store.saveState(_id, _board.toJson());
+    } else {
+      _store.clearState(_id);
+    }
   }
 
-  void _restart() => setState(() => _board = Board2048.start(rng: _rng));
+  void _restart() {
+    setState(() {
+      _board = Board2048.start(rng: _rng);
+      _wonRecorded = false;
+    });
+    _store
+      ..recordStart(_id)
+      ..saveState(_id, _board.toJson());
+  }
 
   static final Map<LogicalKeyboardKey, Dir> _keys = {
     LogicalKeyboardKey.arrowLeft: Dir.left,
@@ -52,10 +98,11 @@ class _Game2048ScreenState extends State<Game2048Screen> {
   Widget build(BuildContext context) {
     final s = Theme.of(context).colorScheme;
     final over = !_board.canMove;
+    final best = max(_store.stats(_id).best ?? 0, _board.score);
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => context.go('/')),
-        title: const Text('2048'),
+        title: Text(_board.reached2048 ? '2048 - Đã đạt 2048!' : '2048'),
         actions: [
           IconButton(
             tooltip: 'Ván mới',
@@ -97,7 +144,7 @@ class _Game2048ScreenState extends State<Game2048Screen> {
                           'Điểm: ${_board.score}',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        Text('Cao nhất: $_best'),
+                        Text('Cao nhất: $best'),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -124,7 +171,7 @@ class _Game2048ScreenState extends State<Game2048Screen> {
                                       style: TextStyle(
                                         fontSize: v >= 1024 ? 22 : 28,
                                         fontWeight: FontWeight.w700,
-                                        color: v >= 8
+                                        color: v >= 16
                                             ? s.onPrimary
                                             : s.onPrimaryContainer,
                                       ),

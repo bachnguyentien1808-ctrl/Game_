@@ -13,8 +13,14 @@ class Board2048 {
     return b;
   }
 
+  factory Board2048.fromJson(Map<String, dynamic> j) => Board2048([
+    for (final r in j['cells'] as List) (r as List).cast<int>().toList(),
+  ], score: j['score'] as int);
+
   final List<List<int>> cells;
   int score;
+
+  Map<String, dynamic> toJson() => {'cells': cells, 'score': score};
 
   Board2048 copy() =>
       Board2048([for (final r in cells) List.of(r)], score: score);

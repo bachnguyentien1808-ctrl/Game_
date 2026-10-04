@@ -19,9 +19,33 @@ class MemoryGame {
     ];
   }
 
+  /// Khoi phuc van dang choi; cap chua ghep xuat hien lai la up.
+  MemoryGame.restore({
+    required List<int> symbols,
+    required List<bool> matched,
+    required this.moves,
+  }) {
+    cards = [
+      for (var i = 0; i < symbols.length; i++)
+        MemoryCard(i, symbols[i])..matched = matched[i],
+    ];
+  }
+
+  factory MemoryGame.fromJson(Map<String, dynamic> j) => MemoryGame.restore(
+    symbols: (j['symbols'] as List).cast<int>(),
+    matched: (j['matched'] as List).cast<bool>(),
+    moves: j['moves'] as int,
+  );
+
   late final List<MemoryCard> cards;
   int moves = 0;
   final List<MemoryCard> _open = [];
+
+  Map<String, dynamic> toJson() => {
+    'symbols': [for (final c in cards) c.symbol],
+    'matched': [for (final c in cards) c.matched],
+    'moves': moves,
+  };
 
   bool get won => cards.every((c) => c.matched);
 

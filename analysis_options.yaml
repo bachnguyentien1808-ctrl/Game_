@@ -17,3 +17,5 @@ linter:
     cascade_invocations: false
     prefer_if_elements_to_conditional_expressions: false
     specify_nonobvious_property_types: false
+    discarded_futures: false
+    unawaited_futures: false

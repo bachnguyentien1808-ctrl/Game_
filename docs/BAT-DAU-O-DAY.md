@@ -23,10 +23,25 @@ python -m http.server 3300 --bind 127.0.0.1 --directory build/web
 ```
 Mở http://localhost:3300 . Mẫu cấu hình preview: `docs/launch.json.mau` (preview_start đọc `.claude/launch.json` của thư mục mở phiên).
 
+### Máy ảo Android (đã chạy được 04/10/2026)
+AVD `puzzle_pixel` (Pixel 6, Android 35 google_apis x86_64) tạo từ SDK có sẵn ở `%LOCALAPPDATA%\Android\Sdk`.
+```
+%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe -avd puzzle_pixel
+# PowerShell, trong thư mục dự án:
+$env:JAVA_TOOL_OPTIONS="-Djdk.net.unixdomain.tmpdir=C:\gtmp -Djava.net.preferIPv4Stack=true"   # tạo C:\gtmp trước
+$env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"
+flutter run -d emulator-5554
+```
+Đường dẫn user có dấu cách ("TRAN CONG THANG") nên Gradle cần `JAVA_TOOL_OPTIONS` ở trên, nếu không báo `Unable to establish loopback connection`. `android/gradle.properties` đã có `kotlin.incremental=false` (project ở ổ E, pub cache ở ổ C làm Kotlin lỗi cache).
+Công cụ Terminal của app Claude có thể không khởi động (thiếu `terminal-shell-integration`): chạy lệnh Gradle bằng PowerShell tool với sandbox tắt.
+Chụp màn hình/kiểm: `adb exec-out screencap -p`, `adb shell uiautomator dump`, đọc prefs bằng `adb shell run-as vn.alodev.puzzle_hub cat shared_prefs/FlutterSharedPreferences.xml`.
+
 ## 3. Trạng thái (04/10/2026)
-- 4 game: Sudoku, 2048, Nonogram (3 màn), Tìm cặp (4x4). Engine có test; UI duyệt bằng mắt trên web 375px: 2048 chơi được, Nonogram hiện đúng, Tìm cặp mới xem bố cục.
-- Chưa có: lưu tiến độ (shared_preferences đã có trong pubspec), ghi chú Sudoku, gợi ý, đồng hồ, âm thanh, đa ngôn ngữ, icon/splash, Android emulator, TestFlight/Play.
-- Việc đề xuất tiếp: lưu tiến độ + thống kê, thêm game (Minesweeper, Kakuro, Lights Out, Sliding puzzle, Word search), icon app.
+- 7 game: Sudoku (3 độ khó, gợi ý, tô cùng số), 2048, Nonogram (3 màn), Tìm cặp, Dò mìn 9x9 (mở/cắm cờ, đồng hồ), Tắt đèn 5x5, Xếp số 4x4. Engine thuần Dart có test (13 test).
+- Lưu tiến độ: `lib/core/storage/progress_store.dart` (shared_preferences). Khoá `state.<id>` = ván đang chơi, `stats.<id>` = đã chơi/thắng/kỷ lục. Màn chính hiện thống kê, chip "Chơi tiếp", menu "Xóa toàn bộ tiến độ". Đã kiểm trên máy ảo: tắt hẳn app rồi mở lại vẫn còn.
+- Mỗi màn game đọc `loadState` ở `initState`, `saveState` sau mỗi nước, `recordWin`/`clearState` khi thắng. Không gọi `saveState` trong `dispose` (làm `ValueNotifier` của màn chính nổ giữa lúc dựng).
+- Chưa có: ghi chú Sudoku (bút chì), đồng hồ Sudoku, âm thanh/rung, đa ngôn ngữ, icon/splash, thống kê chi tiết, chế độ tối/sáng thủ công, đồng bộ đám mây, TestFlight/Play.
+- Việc đề xuất tiếp: Kakuro, Word search, Hanoi, Nonogram nhiều màn hơn, thử thách mỗi ngày + chuỗi ngày, icon app.
 
 ## 4. Kinh nghiệm đã trả giá
 - `flutter run -d web-server` (debug/DDC) bị kẹt màn trắng trong trình duyệt nhúng; dùng bản release + http.server.
