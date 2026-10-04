@@ -1,0 +1,11 @@
+#!/bin/sh
+# Chan commit khi co loi analyze/format hoac lo khoa bi mat
+export PATH="$PATH:/e/tools/flutter/bin"
+if git diff --cached -U0 | grep -E 'gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC )?PRIVATE KEY' >/dev/null; then
+  echo "CHAN: phat hien khoa/token trong thay doi. Go ra truoc khi commit."; exit 1
+fi
+files=$(git diff --cached --name-only --diff-filter=ACM | grep '\.dart$')
+if [ -n "$files" ]; then
+  dart format --output=none --set-exit-if-changed $files || { echo "CHAN: chay 'dart format .'"; exit 1; }
+  flutter analyze --no-pub || { echo "CHAN: flutter analyze loi"; exit 1; }
+fi
