@@ -14,3 +14,6 @@ linter:
     sort_pub_dependencies: false
     unnecessary_type_name_in_constructor: false
     unnecessary_underscores: false
+    cascade_invocations: false
+    prefer_if_elements_to_conditional_expressions: false
+    specify_nonobvious_property_types: false
