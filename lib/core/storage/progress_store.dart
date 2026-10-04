@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:puzzle_hub/core/daily/daily_challenge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Thong ke mot game: so van da bat dau, so van thang, ky luc.
@@ -105,9 +106,76 @@ class ProgressStore {
     version.value++;
   }
 
+  // ---- Thu thach moi ngay ----
+  static const _dailyKey = 'daily.done';
+
+  /// Cac ngay da hoan thanh: yyyyMMdd -> diem (co the null).
+  Map<String, int?> dailyDone() {
+    final raw = _prefs.getString(_dailyKey);
+    if (raw == null) return {};
+    try {
+      return (jsonDecode(raw) as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, v as int?),
+      );
+    } on Object {
+      return {};
+    }
+  }
+
+  bool isDailyDone(String key) => dailyDone().containsKey(key);
+
+  Future<void> completeDaily(String key, {int? score}) async {
+    final m = dailyDone();
+    m.putIfAbsent(key, () => score);
+    await _prefs.setString(_dailyKey, jsonEncode(m));
+    await pruneDaily();
+  }
+
+  /// Xoa trang thai van thu thach ngay cu (giu lai cua ngay [keep]).
+  Future<void> pruneDaily({String? keep}) async {
+    final stale = _prefs.getKeys().where(
+      (k) =>
+          k.startsWith('${_statePrefix}daily.') &&
+          (keep == null || !k.endsWith('.$keep')),
+    );
+    for (final k in stale.toList()) {
+      await _prefs.remove(k);
+    }
+    version.value++;
+  }
+
+  /// Chuoi ngay lien tiep dang con; neu hom nay chua xong thi tinh tu hom qua.
+  int currentStreak(DateTime today) {
+    final done = dailyDone();
+    var d = done.containsKey(dateKey(today)) ? today : previousDay(today);
+    var n = 0;
+    while (done.containsKey(dateKey(d))) {
+      n++;
+      d = previousDay(d);
+    }
+    return n;
+  }
+
+  /// Chuoi dai nhat tung dat.
+  int bestStreak() {
+    final days = dailyDone().keys.map(parseDateKey).toList()..sort();
+    var best = 0;
+    var run = 0;
+    DateTime? prev;
+    for (final d in days) {
+      run = prev != null && previousDay(d) == prev ? run + 1 : 1;
+      if (run > best) best = run;
+      prev = d;
+    }
+    return best;
+  }
+
   Future<void> resetAll() async {
     final keys = _prefs.getKeys().where(
-      (k) => k.startsWith(_statsPrefix) || k.startsWith(_statePrefix),
+      (k) =>
+          k.startsWith(_statsPrefix) ||
+          k.startsWith(_statePrefix) ||
+          k == _dailyKey,
     );
     for (final k in keys.toList()) {
       await _prefs.remove(k);

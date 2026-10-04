@@ -19,9 +19,17 @@ class GameInfo {
     required this.icon,
     required this.builder,
     this.bestKind,
+    this.dailyBuilder,
+    this.howTo,
   });
 
   final String id;
+
+  /// Co gia tri neu game ho tro Thu thach moi ngay: nhan khoa ngay yyyyMMdd.
+  final Widget Function(String dateKey)? dailyBuilder;
+
+  /// Huong dan cach choi ngan (hien o man Cach choi).
+  final String? howTo;
   final String title;
   final String subtitle;
   final IconData icon;
