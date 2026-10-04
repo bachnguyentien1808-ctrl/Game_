@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "puzzle-hub-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "3300", "--bind", "127.0.0.1", "--directory", "<duong-dan>\\Puzzle-hub\\build\\web"],
+      "port": 3300
+    }
+  ]
+}

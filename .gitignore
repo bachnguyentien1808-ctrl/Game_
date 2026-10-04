@@ -1,4 +1,4 @@
-﻿# Flutter / Dart
+# Flutter / Dart
 .dart_tool/
 .packages
 .pub-cache/
@@ -41,4 +41,5 @@ ios/Flutter/ephemeral/
 macos/Pods/
 **/DerivedData/
 
-.claude/
+.claude/settings.local.json
+.claude/launch.json
