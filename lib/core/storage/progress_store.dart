@@ -170,12 +170,33 @@ class ProgressStore {
     return best;
   }
 
+  static const _celebratedKey = 'daily.celebrated';
+
+  /// Ngay (yyyyMMdd) gan nhat da chay hieu ung mung hoan thanh thu thach.
+  String? get lastCelebratedDaily => _prefs.getString(_celebratedKey);
+
+  Future<void> markDailyCelebrated(String key) =>
+      _prefs.setString(_celebratedKey, key);
+
+  /// Tong so van da bat dau / da thang tren cac game [ids].
+  ({int played, int won}) totals(Iterable<String> ids) {
+    var p = 0;
+    var w = 0;
+    for (final id in ids) {
+      final s = stats(id);
+      p += s.played;
+      w += s.won;
+    }
+    return (played: p, won: w);
+  }
+
   Future<void> resetAll() async {
     final keys = _prefs.getKeys().where(
       (k) =>
           k.startsWith(_statsPrefix) ||
           k.startsWith(_statePrefix) ||
-          k == _dailyKey,
+          k == _dailyKey ||
+          k == _celebratedKey,
     );
     for (final k in keys.toList()) {
       await _prefs.remove(k);
