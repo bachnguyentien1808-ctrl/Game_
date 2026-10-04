@@ -8,6 +8,9 @@ TIEN-DO: 4 man chinh moi (hero ngay, choi tiep, loc nhom, luoi the, stagger, Pre
 TIEN-DO: 5 /stats, 6 cach choi (bottom sheet) + gioi thieu 3 trang (co settings.onboarded), 7 CustomTransitionPage fade+slide, tooltip nut icon. SHA f1ac904
 Quyet dinh: nhom game de trong features (map id->nhom) thay vi them field GameInfo, tranh dung registry dang nhieu agent sua.
 
+TIEN-DO: 8 icon manh ghep + splash (tools/gen_icon.dart, flutter_launcher_icons, flutter_native_splash), docs/games/app-shell.md. SHA 20a157b
+XONG: 8/8 moc; flutter analyze sach, flutter test 127 qua.
+
 ## Tiep theo
-8. Icon + splash: tools/gen_icon.dart (goi image) -> assets/icon/*.png; flutter_launcher_icons + flutter_native_splash (dev dep), chay lenh tao file nen tang.
-Sau do: docs/games/app-shell.md (may doc), bao cao.
+- kiem-may: chay that tren may ao: nghe am thanh (Android/web/Windows), xem icon/splash, chuyen trang, gioi thieu lan dau.
+- Cho dieu phoi: game moi them id vao `_categoryOf` (lib/features/common/shell_widgets.dart) neu khong phai nhom Logic.
