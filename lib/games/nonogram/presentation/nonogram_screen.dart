@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
+import 'package:puzzle_hub/games/nonogram/domain/nonogram_progress.dart';
+import 'package:puzzle_hub/games/nonogram/presentation/nonogram_play.dart';
+import 'package:puzzle_hub/games/nonogram/presentation/nonogram_thumb.dart';
 
 const _id = 'nonogram';
 
@@ -14,197 +18,251 @@ class NonogramScreen extends ConsumerStatefulWidget {
 }
 
 class _NonogramScreenState extends ConsumerState<NonogramScreen> {
-  late final ProgressStore _store = ref.read(progressStoreProvider);
-  int _level = 0;
-  late NonogramPuzzle _puzzle;
+  late final GameStore _store = GameStore(ref.read(progressStoreProvider));
+  late NonogramProgress _progress;
 
-  /// Luoi dang choi cua tung man (giu lai khi doi man).
-  late List<List<List<int>>> _grids;
-
-  /// Cac man da giai.
-  final Set<int> _done = {};
-
-  List<List<int>> get _grid => _grids[_level];
-
-  static List<List<int>> _blank(int n) =>
-      List.generate(n, (_) => List.filled(n, 0));
+  /// Tranh dang choi; null = dang o man chon man.
+  int? _current;
+  NonogramGame? _game;
+  int _seconds = 0;
+  int _epoch = 0;
 
   @override
   void initState() {
     super.initState();
-    _grids = [
-      for (final p in nonogramPuzzles) _blank(NonogramPuzzle(p.rows).size),
-    ];
-    final saved = _store.loadState(_id);
-    if (saved != null) {
-      try {
-        final gs = saved['grids'] as List;
-        for (var i = 0; i < _grids.length && i < gs.length; i++) {
-          final g = decodeIntGrid(gs[i]);
-          if (g.length == _grids[i].length) _grids[i] = g;
-        }
-        _done.addAll((saved['done'] as List).cast<int>());
-        _level = (saved['level'] as int).clamp(0, nonogramPuzzles.length - 1);
-      } on Object {
-        // trang thai hong -> bo qua
-      }
-    }
-    _puzzle = NonogramPuzzle(nonogramPuzzles[_level].rows);
+    _progress = NonogramProgress.fromJson(
+      _store.loadState(_id),
+      (i) => i >= 0 && i < nonogramPuzzles.length
+          ? nonogramPuzzles[i].rows.length
+          : null,
+    );
   }
 
-  void _save() => _store.saveState(_id, {
-    'level': _level,
-    'grids': _grids,
-    'done': _done.toList(),
+  void _persist() => _store.saveState(_id, _progress.toJson());
+
+  void _open(int i) {
+    final puzzle = NonogramPuzzle(nonogramPuzzles[i].rows);
+    final save = _progress.saves[i];
+    final game = NonogramGame(puzzle, grid: save?.grid);
+    if (save != null) {
+      game
+        ..hintsUsed = save.hints
+        ..mistakes = save.mistakes
+        ..locked.addAll(save.locked);
+    }
+    setState(() {
+      _current = i;
+      _game = game;
+      _seconds = save?.seconds ?? 0;
+      _epoch++;
+    });
+  }
+
+  void _save(int seconds) {
+    final i = _current;
+    final g = _game;
+    if (i == null || g == null) return;
+    if (g.isSolved && !g.isBlank) return; // da thang, tien do da ghi
+    if (g.isBlank) {
+      _progress.saves.remove(i);
+    } else {
+      _progress.saves[i] = LevelSave(
+        grid: [for (final r in g.grid) List<int>.of(r)],
+        seconds: seconds,
+        hints: g.hintsUsed,
+        mistakes: g.mistakes,
+        locked: g.locked.toList(),
+      );
+    }
+    _persist();
+  }
+
+  void _solved(int seconds, int stars) {
+    final i = _current!;
+    _progress.recordWin(i, seconds, stars);
+    _persist();
+    _store.recordWin(_id);
+  }
+
+  void _close() => setState(() {
+    _current = null;
+    _game = null;
   });
-
-  void _select(int level) {
-    setState(() {
-      _level = level;
-      _puzzle = NonogramPuzzle(nonogramPuzzles[level].rows);
-    });
-    _save();
-  }
-
-  void _reset() {
-    setState(() => _grids[_level] = _blank(_puzzle.size));
-    _done.remove(_level);
-    _save();
-  }
-
-  void _tap(int r, int c, {required bool mark}) {
-    final fresh = _grid.every((row) => row.every((v) => v == 0));
-    setState(() {
-      final cur = _grid[r][c];
-      final target = mark ? 2 : 1;
-      _grid[r][c] = cur == target ? 0 : target;
-    });
-    if (fresh) _store.recordStart(_id);
-    if (_puzzle.isSolved(_grid) && _done.add(_level)) {
-      _store.recordWin(_id);
-    }
-    _save();
-  }
 
   @override
   Widget build(BuildContext context) {
+    final i = _current;
+    if (i != null && _game != null) {
+      return NonogramPlay(
+        key: ValueKey('$i-$_epoch'),
+        index: i,
+        game: _game!,
+        initialSeconds: _seconds,
+        onSave: _save,
+        onFirstMove: () => _store.recordStart(_id),
+        onSolved: _solved,
+        onBack: _close,
+      );
+    }
+    return _select(context);
+  }
+
+  Widget _select(BuildContext context) {
     final s = Theme.of(context).colorScheme;
-    final n = _puzzle.size;
-    final solved = _puzzle.isSolved(_grid);
-    final rowClues = _puzzle.rowClues;
-    final colClues = _puzzle.colClues;
-    final maxCol = colClues.fold<int>(1, (m, e) => e.length > m ? e.length : m);
-    const cell = 34.0;
-
-    Widget clueBox(List<int> clue, {required bool vertical}) => Container(
-      width: vertical ? cell : null,
-      height: vertical ? null : cell,
-      alignment: vertical ? Alignment.bottomCenter : Alignment.centerRight,
-      padding: const EdgeInsets.all(2),
-      child: vertical
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [for (final v in clue) Text('$v')],
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                for (final v in clue)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Text('$v'),
-                  ),
-              ],
-            ),
-    );
-
+    final t = Theme.of(context).textTheme;
+    final solved = _progress.best.length;
+    final total = nonogramPuzzles.length;
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: () => context.go('/')),
-        title: Text(solved ? 'Nonogram - Hoàn thành!' : 'Nonogram'),
-        actions: [
-          IconButton(
-            tooltip: 'Làm lại',
-            icon: const Icon(Icons.refresh),
-            onPressed: _reset,
+        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
+        title: const Text('Nonogram'),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.emoji_events_outlined, color: s.primary),
+                  const SizedBox(width: 8),
+                  Text('Đã giải $solved/$total tranh', style: t.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: solved / total,
+                  minHeight: 8,
+                ),
+              ),
+              for (final size in nonogramPackSizes) ..._pack(context, size),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _pack(BuildContext context, int size) {
+    final t = Theme.of(context).textTheme;
+    final indices = puzzleIndicesOfSize(size);
+    final done = _progress.solvedIn(indices);
+    return [
+      const SizedBox(height: 20),
+      Row(
+        children: [
+          Text('Gói ${size}x$size', style: t.titleLarge),
+          const Spacer(),
+          Text('$done/${indices.length}', style: t.titleSmall),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: Column(
-            children: [
-              SegmentedButton<int>(
-                segments: [
-                  for (var i = 0; i < nonogramPuzzles.length; i++)
-                    ButtonSegment(
-                      value: i,
-                      label: Text('Màn ${i + 1}'),
-                      icon: _done.contains(i) ? const Icon(Icons.check) : null,
-                    ),
-                ],
-                selected: {_level},
-                onSelectionChanged: (v) => _select(v.first),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
+      const SizedBox(height: 6),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: LinearProgressIndicator(
+          value: done / indices.length,
+          minHeight: 4,
+        ),
+      ),
+      const SizedBox(height: 10),
+      LayoutBuilder(
+        builder: (context, box) {
+          final w = (box.maxWidth - 20) / 3;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [for (final i in indices) _card(context, i, w)],
+          );
+        },
+      ),
+    ];
+  }
+
+  Widget _card(BuildContext context, int i, double width) {
+    final s = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
+    final pic = nonogramPuzzles[i];
+    final puzzle = NonogramPuzzle(pic.rows);
+    final best = _progress.best[i];
+    final save = _progress.saves[i];
+    return SizedBox(
+      width: width,
+      child: Card(
+        elevation: 0,
+        color: s.surfaceContainerLow,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _open(i),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              children: [
+                AspectRatio(
+                  aspectRatio: 1,
+                  child: Stack(
                     children: [
-                      SizedBox(height: maxCol * 20.0 + 8),
-                      for (final c in rowClues) clueBox(c, vertical: false),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      SizedBox(
-                        height: maxCol * 20.0 + 8,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            for (final c in colClues)
-                              clueBox(c, vertical: true),
-                          ],
+                      Positioned.fill(
+                        child: NonogramThumb(
+                          solution: puzzle.solution,
+                          top: Color(pic.top),
+                          bottom: Color(pic.bottom),
+                          grid: save?.grid,
+                          colored: best != null,
                         ),
                       ),
-                      for (var r = 0; r < n; r++)
-                        Row(
-                          children: [
-                            for (var c = 0; c < n; c++)
-                              GestureDetector(
-                                onTap: () => _tap(r, c, mark: false),
-                                onLongPress: () => _tap(r, c, mark: true),
-                                onSecondaryTap: () => _tap(r, c, mark: true),
-                                child: Container(
-                                  width: cell,
-                                  height: cell,
-                                  decoration: BoxDecoration(
-                                    color: _grid[r][c] == 1
-                                        ? s.primary
-                                        : s.surface,
-                                    border: Border.all(color: s.outlineVariant),
-                                  ),
-                                  child: _grid[r][c] == 2
-                                      ? Icon(
-                                          Icons.close,
-                                          size: 18,
-                                          color: s.outline,
-                                        )
-                                      : null,
-                                ),
-                              ),
-                          ],
+                      if (best != null)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Icon(
+                            Icons.check_circle,
+                            color: s.primary,
+                            size: 20,
+                          ),
+                        )
+                      else if (save == null)
+                        Positioned.fill(
+                          child: Icon(
+                            Icons.lock_open_outlined,
+                            color: s.outline.withValues(alpha: 0.6),
+                          ),
                         ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text('Chạm: tô ô · Nhấn giữ hoặc chuột phải: đánh dấu X'),
-            ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  pic.name,
+                  style: t.labelLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (var k = 0; k < 3; k++)
+                      Icon(
+                        k < (best?.stars ?? 0) ? Icons.star : Icons.star_border,
+                        size: 16,
+                        color: k < (best?.stars ?? 0)
+                            ? Colors.amber
+                            : s.outline,
+                      ),
+                  ],
+                ),
+                Text(
+                  best != null
+                      ? formatSeconds(best.seconds)
+                      : save != null
+                      ? 'Đang chơi'
+                      : ' ',
+                  style: t.labelSmall,
+                ),
+              ],
+            ),
           ),
         ),
       ),
