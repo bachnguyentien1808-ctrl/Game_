@@ -25,7 +25,7 @@ final gameRegistry = <GameInfo>[
   GameInfo(
     id: 'sudoku',
     title: 'Sudoku',
-    subtitle: 'Äiá»n sá»‘ 1-9, khÃ´ng trÃ¹ng hÃ ng, cá»™t, Ã´ 3x3',
+    subtitle: 'Điền số 1-9, không trùng hàng, cột, ô 3x3',
     icon: Icons.grid_on,
     builder: (_) => const SudokuScreen(),
   ),

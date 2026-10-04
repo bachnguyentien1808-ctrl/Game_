@@ -58,7 +58,7 @@ class _Game2048ScreenState extends State<Game2048Screen> {
         title: const Text('2048'),
         actions: [
           IconButton(
-            tooltip: 'VÃ¡n má»›i',
+            tooltip: 'Ván mới',
             icon: const Icon(Icons.refresh),
             onPressed: _restart,
           ),
@@ -94,10 +94,10 @@ class _Game2048ScreenState extends State<Game2048Screen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Äiá»ƒm: ${_board.score}',
+                          'Điểm: ${_board.score}',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        Text('Cao nháº¥t: $_best'),
+                        Text('Cao nhất: $_best'),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -141,18 +141,14 @@ class _Game2048ScreenState extends State<Game2048Screen> {
                               alignment: Alignment.center,
                               child: FilledButton(
                                 onPressed: _restart,
-                                child: const Text(
-                                  'Háº¿t nÆ°á»›c Ä‘i - ChÆ¡i láº¡i',
-                                ),
+                                child: const Text('Hết nước đi - Chơi lại'),
                               ),
                             ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Vuá»‘t hoáº·c dÃ¹ng phÃ­m mÅ©i tÃªn Ä‘á»ƒ gá»™p Ã´',
-                    ),
+                    const Text('Vuốt hoặc dùng phím mũi tên để gộp ô'),
                   ],
                 ),
               ),
