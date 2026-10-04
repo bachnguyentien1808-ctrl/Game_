@@ -40,3 +40,5 @@ ios/.symlinks/
 ios/Flutter/ephemeral/
 macos/Pods/
 **/DerivedData/
+
+.claude/
