@@ -7,24 +7,20 @@ import 'package:puzzle_hub/features/settings/settings_screen.dart';
 import 'package:puzzle_hub/features/stats/stats_screen.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
-/// Chuyen trang mo dan + truot nhe len (tat khi he thong giam chuyen dong).
+/// Chuyen trang nhanh: trang moi mo dan trong 140 ms; trang cu bien mat ngay
+/// (khong mo dan ra) de khong bi bong hinh cua game de len man hinh chinh.
+/// Tat han khi he thong giam chuyen dong.
 CustomTransitionPage<void> fadeSlidePage(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 140),
+    reverseTransitionDuration: Duration.zero,
     transitionsBuilder: (context, animation, secondary, child) {
       if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return child;
-      final a = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
       return FadeTransition(
-        opacity: a,
-        child: SlideTransition(
-          position: Tween(
-            begin: const Offset(0, 0.04),
-            end: Offset.zero,
-          ).animate(a),
-          child: child,
-        ),
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child: child,
       );
     },
   );

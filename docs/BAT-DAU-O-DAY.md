@@ -36,12 +36,15 @@ flutter run -d emulator-5554
 Công cụ Terminal của app Claude có thể không khởi động (thiếu `terminal-shell-integration`): chạy lệnh Gradle bằng PowerShell tool với sandbox tắt.
 Chụp màn hình/kiểm: `adb exec-out screencap -p`, `adb shell uiautomator dump`, đọc prefs bằng `adb shell run-as vn.alodev.puzzle_hub cat shared_prefs/FlutterSharedPreferences.xml`.
 
-## 3. Trạng thái (04/10/2026)
-- 7 game: Sudoku (3 độ khó, gợi ý, tô cùng số), 2048, Nonogram (3 màn), Tìm cặp, Dò mìn 9x9 (mở/cắm cờ, đồng hồ), Tắt đèn 5x5, Xếp số 4x4. Engine thuần Dart có test (13 test).
-- Lưu tiến độ: `lib/core/storage/progress_store.dart` (shared_preferences). Khoá `state.<id>` = ván đang chơi, `stats.<id>` = đã chơi/thắng/kỷ lục. Màn chính hiện thống kê, chip "Chơi tiếp", menu "Xóa toàn bộ tiến độ". Đã kiểm trên máy ảo: tắt hẳn app rồi mở lại vẫn còn.
-- Mỗi màn game đọc `loadState` ở `initState`, `saveState` sau mỗi nước, `recordWin`/`clearState` khi thắng. Không gọi `saveState` trong `dispose` (làm `ValueNotifier` của màn chính nổ giữa lúc dựng).
-- Chưa có: ghi chú Sudoku (bút chì), đồng hồ Sudoku, âm thanh/rung, đa ngôn ngữ, icon/splash, thống kê chi tiết, chế độ tối/sáng thủ công, đồng bộ đám mây, TestFlight/Play.
-- Việc đề xuất tiếp: Kakuro, Word search, Hanoi, Nonogram nhiều màn hơn, thử thách mỗi ngày + chuỗi ngày, icon app.
+## 3. Trạng thái (07/10/2026)
+- 8 game: Sudoku, 2048, Nonogram, Tìm cặp, Dò mìn, Tắt đèn, Xếp số, Kakuro. Engine thuần Dart có test; đăng ký ở `lib/games/game_registry.dart`.
+- Lưu tiến độ: `lib/core/storage/progress_store.dart` (shared_preferences): `state.<id>` ván dở, `stats.<id>` đã chơi/thắng/kỷ lục/chuỗi thắng, `score.total` + `score.game.<id>` điểm, `tutorial.<id>` đã xem hướng dẫn.
+- Điểm số: `lib/core/score/scoring.dart` (nhanh thì cao, chậm giảm dần, sàn 25%, mỗi lỗi -5%, mỗi gợi ý -8%). Mỗi game gọi `GameStore.awardPoints` đúng một lần khi thắng và truyền `points:` vào `WinBanner`. Ô điểm trên AppBar: `lib/core/ui/score_chip.dart`.
+- Hướng dẫn + chú thích từng game: `lib/features/howto/game_tutorials.dart` (test bắt buộc mỗi game trong registry phải có). Tự mở lần đầu qua `GameIntro` trong router; nút "?" trên AppBar.
+- Giao diện: bộ kẹo `lib/core/ui/candy.dart` + bộ kính mờ `lib/core/ui/glass.dart` (đổi màu theo ngày/chiều/đêm). Logo: `lib/core/ui/game_logo.dart` (+ `assets/images/logo*.webp`).
+- Nền: `CandyBackground` (màn ngoài, chuyển động) và `GameBackdrop` (trong game, đứng yên). Buổi trong ngày: `lib/core/theme/day_phase.dart`; Cài đặt Sáng = ban ngày, Tối = ban đêm, Tự động = theo giờ (05:30-16:29 ngày, 16:30-18:59 chiều, còn lại đêm). Ảnh nền `assets/images/bg_*.webp` đều là ảnh người dùng cung cấp, không tự sinh; test tắt chuyển động qua `test/flutter_test_config.dart`.
+- Chưa có: đa ngôn ngữ, icon app/splash theo logo mới (icon hiện vẫn là mảnh ghép), đồng bộ đám mây, TestFlight/Play.
+- Việc đề xuất tiếp: Word search, Hanoi, thưởng điểm giữa chừng cho Nonogram/Kakuro, ảnh nền chiều/đêm riêng cho từng cảnh.
 
 ## 4. Kinh nghiệm đã trả giá
 - `flutter run -d web-server` (debug/DDC) bị kẹt màn trắng trong trình duyệt nhúng; dùng bản release + http.server.

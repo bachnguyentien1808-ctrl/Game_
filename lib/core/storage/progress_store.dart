@@ -137,6 +137,24 @@ class ProgressStore {
     return lower ? min(old, now) : max(old, now);
   }
 
+  // ---- Diem so ----
+  static const _scoreTotalKey = 'score.total';
+  static const _scorePrefix = 'score.game.';
+
+  /// Tong diem cua moi game.
+  int get totalPoints => _prefs.getInt(_scoreTotalKey) ?? 0;
+
+  /// Diem tich luy cua mot game.
+  int gamePoints(String id) => _prefs.getInt('$_scorePrefix$id') ?? 0;
+
+  /// Cong [points] diem cho game [id] (va tong).
+  Future<void> addPoints(String id, int points) async {
+    if (points <= 0) return;
+    await _prefs.setInt(_scoreTotalKey, totalPoints + points);
+    await _prefs.setInt('$_scorePrefix$id', gamePoints(id) + points);
+    version.value++;
+  }
+
   static const _tutorialPrefix = 'tutorial.';
 
   /// Da tu mo huong dan lan dau cua game [id] chua.
@@ -258,6 +276,8 @@ class ProgressStore {
           k.startsWith(_statsPrefix) ||
           k.startsWith(_statePrefix) ||
           k == _dailyKey ||
+          k == _scoreTotalKey ||
+          k.startsWith(_scorePrefix) ||
           k == _celebratedKey,
     );
     for (final k in keys.toList()) {

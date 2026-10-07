@@ -31,6 +31,13 @@ class GameStore {
   Future<void> recordStart(String id) =>
       isDaily ? Future.value() : _s.recordStart(id);
 
+  /// Cong diem khi thang (ca van thuong lan thu thach ngay); goi dung mot lan
+  /// moi van thang. Tra ve so diem de hien tren man thang.
+  Future<int> awardPoints(String id, int points) async {
+    await _s.addPoints(id, points);
+    return points;
+  }
+
   Future<void> recordLoss(String id) =>
       isDaily ? Future.value() : _s.recordLoss(id);
 

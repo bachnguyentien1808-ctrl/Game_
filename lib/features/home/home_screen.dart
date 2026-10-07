@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/daily/daily_challenge.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
+import 'package:puzzle_hub/core/ui/game_logo.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/howto/how_to_sheet.dart';
@@ -83,6 +85,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
   Widget build(BuildContext context) {
     final store = ref.watch(progressStoreProvider);
     final today = ref.read(todayProvider)();
+    final sound = ref.watch(settingsProvider.select((s) => s.sound));
     return Scaffold(
       body: ValueListenableBuilder<int>(
         valueListenable: store.version,
@@ -97,20 +100,43 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
           ];
           return CustomScrollView(
             slivers: [
-              SliverAppBar.medium(
-                title: const Text('Puzzle Hub'),
+              SliverAppBar(
+                pinned: true,
+                toolbarHeight: 140,
+                leadingWidth: 240,
+                leading: const Padding(
+                  padding: EdgeInsets.only(left: 12, top: 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: BrandLogo(height: 132),
+                  ),
+                ),
                 actions: [
-                  IconButton(
+                  _RoundAction(
+                    tooltip: sound ? 'Tắt âm thanh' : 'Bật âm thanh',
+                    icon: sound
+                        ? Icons.volume_up_rounded
+                        : Icons.volume_off_rounded,
+                    colors: Candy.green,
+                    onPressed: () => ref
+                        .read(settingsProvider.notifier)
+                        .setSound(on: !sound),
+                  ),
+                  const SizedBox(width: 8),
+                  _RoundAction(
                     tooltip: 'Thống kê',
-                    icon: const Icon(Icons.insights_outlined),
+                    icon: Icons.insights_rounded,
+                    colors: Candy.blue,
                     onPressed: () => context.go('/stats'),
                   ),
-                  IconButton(
+                  const SizedBox(width: 8),
+                  _RoundAction(
                     tooltip: 'Cài đặt',
-                    icon: const Icon(Icons.settings_outlined),
+                    icon: Icons.settings_rounded,
+                    colors: Candy.purple,
                     onPressed: () => context.go('/settings'),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 14),
                 ],
               ),
               SliverToBoxAdapter(
@@ -121,6 +147,11 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        StaggerIn(
+                          animation: _slot(0),
+                          child: _ScoreBanner(points: store.totalPoints),
+                        ),
+                        const SizedBox(height: 14),
                         StaggerIn(
                           animation: _slot(0),
                           child: _DailyHero(store: store, today: today),
@@ -157,7 +188,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 280,
-                            mainAxisExtent: 168,
+                            mainAxisExtent: 196,
                             mainAxisSpacing: 12,
                             crossAxisSpacing: 12,
                           ),
@@ -179,6 +210,163 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
   }
 }
 
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({
+    required this.tooltip,
+    required this.icon,
+    required this.colors,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final List<Color> colors;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: CandyButton(
+          onPressed: onPressed,
+          colors: colors,
+          circle: true,
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 24),
+        ),
+      ),
+    );
+  }
+}
+
+/// Nhan muc nho tren nen kem de luon doc duoc.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text, this.icon);
+
+  final String text;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 5, 16, 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Candy.gold, width: 2),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Candy.cream, Candy.creamDeep],
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x44000000),
+            offset: Offset(0, 3),
+            blurRadius: 3,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Candy.brown),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Candy.brown,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tong diem tich luy cua moi game, dem tang dan khi thay doi.
+class _ScoreBanner extends StatelessWidget {
+  const _ScoreBanner({required this.points});
+
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('total-score'),
+      padding: const EdgeInsets.fromLTRB(10, 8, 18, 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Candy.gold, width: 2.5),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Candy.cream, Candy.creamDeep],
+        ),
+        boxShadow: const [
+          BoxShadow(color: Color(0xFFB07A3E), offset: Offset(0, 4)),
+          BoxShadow(
+            color: Color(0x55000000),
+            offset: Offset(0, 8),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Candy.gold, width: 2),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFFFE066), Color(0xFFF08A1C)],
+              ),
+            ),
+            child: const Icon(
+              Icons.emoji_events_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Tổng điểm',
+              style: TextStyle(
+                color: Candy.brown,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: points),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (_, v, _) => Text(
+              Scoring.format(v),
+              style: const TextStyle(
+                color: Candy.brown,
+                fontWeight: FontWeight.w900,
+                fontSize: 28,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Icon(Icons.stars_rounded, color: Color(0xFFF08A1C)),
+        ],
+      ),
+    );
+  }
+}
+
 class _DailyHero extends StatelessWidget {
   const _DailyHero({required this.store, required this.today});
 
@@ -187,7 +375,6 @@ class _DailyHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
     final key = dateKey(today);
     final gameId = dailyGameFor(today);
@@ -200,89 +387,125 @@ class _DailyHero extends StatelessWidget {
       DailyStatus.notStarted =>
         game?.dailyBuilder == null ? 'Sắp có' : 'Chưa chơi',
     };
+    const shadow = [Shadow(color: Color(0x88000000), blurRadius: 3)];
     return Pressable(
       semanticLabel: 'Thử thách hôm nay: ${game?.title ?? gameId}, $statusText',
-      borderRadius: 24,
+      borderRadius: 26,
       onTap: () => context.go('/daily'),
       child: Ink(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [s.primary, Color.lerp(s.primary, s.tertiary, 0.6)!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Candy.gold, width: 3),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFB74D), Color(0xFFE65100)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-        ),
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Hero(
-              tag: 'daily-icon',
-              child: IconTile(
-                icon: game?.icon ?? Icons.extension_rounded,
-                size: 64,
-                background: s.onPrimary.withValues(alpha: 0.18),
-                foreground: s.onPrimary,
-              ),
+          boxShadow: const [
+            BoxShadow(color: Color(0xFF8D3B00), offset: Offset(0, 5)),
+            BoxShadow(
+              color: Color(0x66000000),
+              offset: Offset(0, 10),
+              blurRadius: 8,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: Stack(
+          children: [
+            const CandyGloss(radius: 22),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
                 children: [
-                  Text(
-                    'Thử thách hôm nay',
-                    style: t.labelLarge?.copyWith(
-                      color: s.onPrimary.withValues(alpha: 0.85),
+                  Hero(
+                    tag: 'daily-icon',
+                    child: IconTile(
+                      icon: game?.icon ?? Icons.extension_rounded,
+                      size: 64,
+                      background: Colors.white24,
+                      foreground: Colors.white,
                     ),
                   ),
-                  Text(
-                    game?.title ?? gameId,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.titleLarge?.copyWith(
-                      color: s.onPrimary,
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Thử thách hôm nay',
+                          style: t.labelLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            shadows: shadow,
+                          ),
+                        ),
+                        Text(
+                          game?.title ?? gameId,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            shadows: shadow,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              status == DailyStatus.done
+                                  ? Icons.check_circle_rounded
+                                  : Icons.play_circle_outline_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              statusText,
+                              style: t.bodyMedium?.copyWith(
+                                color: Colors.white,
+                                shadows: shadow,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        status == DailyStatus.done
-                            ? Icons.check_circle_rounded
-                            : Icons.play_circle_outline_rounded,
-                        size: 16,
-                        color: s.onPrimary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusText,
-                        style: t.bodyMedium?.copyWith(color: s.onPrimary),
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.local_fire_department_rounded,
+                          size: 30,
+                          color: streak > 0
+                              ? const Color(0xFFFFEB3B)
+                              : Colors.white54,
+                        ),
+                        Text(
+                          '$streak',
+                          style: t.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'ngày',
+                          style: t.labelSmall?.copyWith(color: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-            Column(
-              children: [
-                Icon(
-                  Icons.local_fire_department_rounded,
-                  size: 30,
-                  color: streak > 0
-                      ? Colors.orangeAccent
-                      : s.onPrimary.withValues(alpha: 0.5),
-                ),
-                Text(
-                  '$streak',
-                  style: t.titleMedium?.copyWith(
-                    color: s.onPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text('ngày', style: t.labelSmall?.copyWith(color: s.onPrimary)),
-              ],
             ),
           ],
         ),
@@ -298,52 +521,63 @@ class _ResumeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Chơi tiếp', style: t.titleMedium),
-        const SizedBox(height: 8),
+        const _SectionLabel('Chơi tiếp', Icons.play_circle_fill_rounded),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 60,
+          height: 66,
           child: ListView.separated(
+            clipBehavior: Clip.none,
             scrollDirection: Axis.horizontal,
             itemCount: games.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, i) {
               final g = games[i];
-              return Pressable(
-                semanticLabel: 'Chơi tiếp ${g.title}',
-                borderRadius: 16,
-                onTap: () => context.go('/play/${g.id}'),
-                child: Ink(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-                  decoration: BoxDecoration(
-                    color: s.tertiaryContainer,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      IconTile(
-                        icon: g.icon,
-                        size: 40,
-                        background: s.tertiary,
-                        foreground: s.onTertiary,
+              final colors = Candy.forId(g.id);
+              return _Hoverable(
+                scale: 1.08,
+                child: Pressable(
+                  semanticLabel: 'Chơi tiếp ${g.title}',
+                  borderRadius: 18,
+                  onTap: () => context.go('/play/${g.id}'),
+                  child: Ink(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: colors,
                       ),
-                      const SizedBox(width: 10),
-                      Text(
-                        g.title,
-                        style: t.titleSmall?.copyWith(
-                          color: s.onTertiaryContainer,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Candy.gold, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Candy.deep(colors),
+                          offset: const Offset(0, 4),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.play_arrow_rounded,
-                        color: s.onTertiaryContainer,
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        GameLogo(id: g.id, size: 40),
+                        const SizedBox(width: 10),
+                        Text(
+                          g.title,
+                          style: t.titleSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -361,21 +595,42 @@ class _FilterBar extends StatelessWidget {
   final GameCategory value;
   final ValueChanged<GameCategory> onChanged;
 
+  static const _palette = [
+    Candy.blue,
+    Candy.green,
+    Candy.purple,
+    Candy.orange,
+    Candy.pink,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          for (final c in GameCategory.values)
+          for (final (i, c) in GameCategory.values.indexed)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                avatar: Icon(c.icon, size: 18),
-                label: Text(c.label),
-                selected: c == value,
-                showCheckmark: false,
-                onSelected: (_) => onChanged(c),
+              padding: const EdgeInsets.only(right: 10),
+              child: CandyButton(
+                onPressed: () => onChanged(c),
+                colors: _palette[i % _palette.length],
+                dim: c != value,
+                radius: 18,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(c.icon, size: 18),
+                    const SizedBox(width: 6),
+                    Text(c.label),
+                  ],
+                ),
               ),
             ),
         ],
@@ -385,6 +640,36 @@ class _FilterBar extends StatelessWidget {
 }
 
 /// The game o luoi man chinh.
+/// Re chuot vao thi o phong to hon cac o khac (chi o may co chuot).
+class _Hoverable extends StatefulWidget {
+  const _Hoverable({required this.child, this.scale = 1.06});
+
+  final Widget child;
+  final double scale;
+
+  @override
+  State<_Hoverable> createState() => _HoverableState();
+}
+
+class _HoverableState extends State<_Hoverable> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final off = animationsOff(context);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedScale(
+        scale: _hover && !off ? widget.scale : 1,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutBack,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class GameCard extends StatelessWidget {
   const GameCard({required this.game, required this.store, super.key});
 
@@ -402,146 +687,155 @@ class GameCard extends StatelessWidget {
     final line = stats.played == 0 && stats.won == 0
         ? 'Chưa chơi'
         : 'Đã chơi ${stats.played} · Thắng ${stats.won}';
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Pressable(
-            semanticLabel: '${game.title}. ${game.subtitle}',
-            onTap: () => context.go('/play/${game.id}'),
-            child: Ink(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: colors,
+    return _Hoverable(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Pressable(
+              semanticLabel: '${game.title}. ${game.subtitle}',
+              onTap: () => context.go('/play/${game.id}'),
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: colors,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white70, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Candy.deep(colors),
+                      offset: const Offset(0, 4),
+                    ),
+                    const BoxShadow(
+                      color: Color(0x66000000),
+                      offset: Offset(0, 10),
+                      blurRadius: 14,
+                    ),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white38, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Candy.deep(colors),
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      IconTile(
-                        icon: game.icon,
-                        size: 48,
-                        background: Colors.white24,
-                        foreground: onCard,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        GameLogo(id: game.id, size: 52),
+                        Expanded(
+                          child: !resume
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 6,
+                                    right: 26,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white24,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.play_arrow_rounded,
+                                              size: 14,
+                                              color: onCard,
+                                            ),
+                                            Text(
+                                              'Chơi tiếp',
+                                              style: t.labelSmall?.copyWith(
+                                                color: onCard,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      game.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: onCard,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 22),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                game.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: onCard,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                game.subtitle,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.bodySmall?.copyWith(
-                                  color: Colors.white70,
-                                  height: 1.25,
-                                ),
-                              ),
-                            ],
-                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      game.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.bodySmall?.copyWith(
+                        color: Colors.white70,
+                        height: 1.25,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      line,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.labelSmall?.copyWith(color: Colors.white70),
+                    ),
+                    if (store.gamePoints(game.id) > 0)
+                      Text(
+                        '★ ${Scoring.format(store.gamePoints(game.id))} điểm',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.labelSmall?.copyWith(
+                          color: const Color(0xFFFFEB3B),
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              line,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: t.labelSmall?.copyWith(
-                                color: Colors.white70,
-                              ),
-                            ),
-                            if (best != null)
-                              Text(
-                                best,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.labelSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                          ],
+                    if (best != null)
+                      Text(
+                        best,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      if (resume)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 14,
-                                color: onCard,
-                              ),
-                              Text(
-                                'Chơi tiếp',
-                                style: t.labelSmall?.copyWith(color: onCard),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        Positioned(
-          top: 2,
-          right: 2,
-          child: IconButton(
-            tooltip: 'Cách chơi ${game.title}',
-            visualDensity: VisualDensity.compact,
-            iconSize: 20,
-            icon: const Icon(Icons.help_outline_rounded, color: Colors.white70),
-            onPressed: () => showHowTo(context, game),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: IconButton(
+              tooltip: 'Cách chơi ${game.title}',
+              visualDensity: VisualDensity.compact,
+              iconSize: 20,
+              icon: const Icon(
+                Icons.help_outline_rounded,
+                color: Colors.white70,
+              ),
+              onPressed: () => showHowTo(context, game),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

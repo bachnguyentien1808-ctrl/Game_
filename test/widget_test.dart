@@ -35,7 +35,7 @@ void main() {
       'stats.sudoku': '{"played":3,"won":1,"best":null}',
       'state.sudoku': '{}',
     });
-    expect(find.text('Puzzle Hub'), findsWidgets);
+    expect(find.byKey(const Key('app-logo')), findsOneWidget);
     expect(find.text('Thử thách hôm nay'), findsOneWidget);
     expect(find.text('Sudoku'), findsWidgets);
     expect(find.text('Đã chơi 3 · Thắng 1'), findsOneWidget);

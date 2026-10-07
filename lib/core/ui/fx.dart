@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 
 /// Phan hoi xuc giac dung chung. Bat/tat qua [GameFx.haptics]
@@ -258,6 +259,7 @@ class WinBanner extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.onAgain,
+    this.points,
     super.key,
   });
 
@@ -265,6 +267,9 @@ class WinBanner extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback? onAgain;
+
+  /// Diem nhan duoc o van nay; hien "+N diem" dem tang dan.
+  final int? points;
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +314,10 @@ class WinBanner extends StatelessWidget {
                               ),
                             ),
                           ),
+                        if (points != null && points! > 0) ...[
+                          const SizedBox(height: 12),
+                          _PointsBadge(points: points!),
+                        ],
                         if (onAgain != null) ...[
                           const SizedBox(height: 16),
                           CandyButton(
@@ -332,6 +341,53 @@ class WinBanner extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// "+N diem" dem tang dan tu 0, nen vang bong.
+class _PointsBadge extends StatelessWidget {
+  const _PointsBadge({required this.points});
+
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<int>(
+      tween: IntTween(begin: 0, end: points),
+      duration: const Duration(milliseconds: 1200),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, _) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white, width: 2),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: Candy.orange,
+          ),
+          boxShadow: const [
+            BoxShadow(color: Color(0x66000000), offset: Offset(0, 3)),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.stars_rounded, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              '+${Scoring.format(v)} điểm',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 20,
+                shadows: [Shadow(color: Color(0x88000000), blurRadius: 3)],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

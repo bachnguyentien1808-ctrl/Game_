@@ -46,6 +46,8 @@ void main() {
     expect(SfxEngine.enabled.value, isFalse);
 
     await tester.scrollUntilVisible(find.text('Xóa toàn bộ tiến độ'), 100);
+    await tester.ensureVisible(find.text('Xóa toàn bộ tiến độ'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Xóa toàn bộ tiến độ'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Xóa'));

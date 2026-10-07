@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:puzzle_hub/features/common/shell_widgets.dart';
+import 'package:puzzle_hub/core/ui/game_logo.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
 /// Noi dung huong dan: GameInfo.howTo, chua co thi dung subtitle.
@@ -46,7 +46,7 @@ class HowToSheet extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  IconTile(icon: game.icon, size: 52),
+                  GameLogo(id: game.id, size: 52),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(

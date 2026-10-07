@@ -15,6 +15,16 @@ abstract final class AppTheme {
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         scrolledUnderElevation: 0,
+        // Tieu de trang tren nen anh: chu trang dam co bong, doc ro moi buoi.
+        foregroundColor: Colors.white,
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          shadows: [Shadow(color: Color(0x99000000), blurRadius: 4)],
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
+        actionsIconTheme: IconThemeData(color: Colors.white),
       ),
       cardTheme: const CardThemeData(elevation: 0),
     );

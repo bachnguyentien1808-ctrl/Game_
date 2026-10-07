@@ -67,7 +67,8 @@ class _GameIntroState extends ConsumerState<GameIntro> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) =>
+      GameBackdrop(gameId: widget.gameId, child: widget.child);
 }
 
 class TutorialSheet extends StatefulWidget {
