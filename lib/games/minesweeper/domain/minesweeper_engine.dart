@@ -32,11 +32,15 @@ enum MineLevel {
 }
 
 class Minesweeper {
-  Minesweeper({this.rows = 9, this.cols = 9, this.mines = 10})
-    : cells = List.generate(
-        rows,
-        (_) => List.generate(cols, (_) => MineCell()),
-      );
+  Minesweeper({
+    this.rows = 9,
+    this.cols = 9,
+    this.mines = 10,
+    this.noGuess = true,
+  }) : cells = List.generate(
+         rows,
+         (_) => List.generate(cols, (_) => MineCell()),
+       );
 
   /// Ban tuy chinh; nem [ArgumentError] neu cau hinh khong hop le.
   factory Minesweeper.custom(int rows, int cols, int mines) {
@@ -163,19 +167,153 @@ class Minesweeper {
     }
   }
 
-  /// Dat mine sau luot mo dau tien, tranh o (r,c) va lang gieng.
+  /// Co sinh ban giai duoc bang suy luan (khong phai doan) hay khong.
+  final bool noGuess;
+
+  /// Dat mine sau luot mo dau tien, tranh o (r,c) va lang gieng. Neu [noGuess]
+  /// thi thu lai nhieu lan de tim ban giai duoc bang suy luan tu o dau; het
+  /// luot thu thi dung ban cuoi (van hop le, co the phai doan).
   void _place(int r, int c, Random rng) {
     final banned = {(r, c), ..._neighbors(r, c)};
-    final spots = <(int, int)>[
+    final spots = <int>[
       for (var i = 0; i < rows; i++)
         for (var j = 0; j < cols; j++)
-          if (!banned.contains((i, j))) (i, j),
-    ]..shuffle(rng);
-    for (final p in spots.take(mines)) {
-      cells[p.$1][p.$2].mine = true;
+          if (!banned.contains((i, j))) i * cols + j,
+    ];
+    final attempts = noGuess ? (rows * cols <= 100 ? 150 : 40) : 1;
+    var layout = List<bool>.filled(rows * cols, false);
+    for (var a = 0; a < attempts; a++) {
+      spots.shuffle(rng);
+      layout = List<bool>.filled(rows * cols, false);
+      for (final i in spots.take(mines)) {
+        layout[i] = true;
+      }
+      if (!noGuess || _solvable(layout, r, c)) break;
+    }
+    for (var i = 0; i < layout.length; i++) {
+      cells[i ~/ cols][i % cols].mine = layout[i];
     }
     _countNear();
     placed = true;
+  }
+
+  /// Bang hien tai co giai duoc bang suy luan neu mo dau tai (r,c) khong.
+  bool isLogicSolvable(int r, int c) => _solvable(
+    [
+      for (final row in cells)
+        for (final cell in row) cell.mine,
+    ],
+    r,
+    c,
+  );
+
+  /// Gia lap nguoi choi chi dung suy luan chac chan (so == so o ke chua mo,
+  /// so == so mine da biet, va quan he tap con giua hai so ke nhau) bat dau
+  /// tu viec mo (sr,sc). True neu mo het duoc moi o an toan.
+  bool _solvable(List<bool> mine, int sr, int sc) {
+    int idx(int r, int c) => r * cols + c;
+    Iterable<int> around(int i) sync* {
+      final r = i ~/ cols;
+      final c = i % cols;
+      for (final p in _neighbors(r, c)) {
+        yield idx(p.$1, p.$2);
+      }
+    }
+
+    final near = List<int>.generate(
+      rows * cols,
+      (i) => around(i).where((n) => mine[n]).length,
+    );
+    final open = List<bool>.filled(rows * cols, false);
+    final known = List<bool>.filled(rows * cols, false);
+    var left = rows * cols - mines;
+
+    void flood(int start) {
+      final stack = [start];
+      while (stack.isNotEmpty) {
+        final i = stack.removeLast();
+        if (open[i] || known[i]) continue;
+        open[i] = true;
+        left--;
+        if (near[i] == 0) stack.addAll(around(i));
+      }
+    }
+
+    flood(idx(sr, sc));
+    var progress = true;
+    while (progress && left > 0) {
+      progress = false;
+      // Rang buoc: moi o so da mo con o chua ro xung quanh.
+      final unk = <int, List<int>>{};
+      final rem = <int, int>{};
+      for (var i = 0; i < open.length; i++) {
+        if (!open[i] || near[i] == 0) continue;
+        final u = <int>[];
+        var k = 0;
+        for (final n in around(i)) {
+          if (open[n]) continue;
+          if (known[n]) {
+            k++;
+          } else {
+            u.add(n);
+          }
+        }
+        if (u.isEmpty) continue;
+        unk[i] = u;
+        rem[i] = near[i] - k;
+      }
+      void resolve(Iterable<int> cs, {required bool isMine}) {
+        for (final n in cs.toList()) {
+          if (open[n] || known[n]) continue;
+          if (isMine) {
+            known[n] = true;
+          } else {
+            flood(n);
+          }
+          progress = true;
+        }
+      }
+
+      for (final e in unk.entries) {
+        final m = rem[e.key]!;
+        if (m == 0) {
+          resolve(e.value, isMine: false);
+        } else if (m == e.value.length) {
+          resolve(e.value, isMine: true);
+        }
+      }
+      if (progress) continue;
+      // Luat tap con: A.unk nam trong B.unk thi B\A co rem[B]-rem[A] mine.
+      for (final a in unk.entries) {
+        final ar = a.key ~/ cols;
+        final ac = a.key % cols;
+        for (var dr = -2; dr <= 2; dr++) {
+          for (var dc = -2; dc <= 2; dc++) {
+            final br = ar + dr;
+            final bc = ac + dc;
+            if ((dr == 0 && dc == 0) ||
+                br < 0 ||
+                br >= rows ||
+                bc < 0 ||
+                bc >= cols) {
+              continue;
+            }
+            final bk = idx(br, bc);
+            final bu = unk[bk];
+            if (bu == null || bu.length <= a.value.length) continue;
+            if (!a.value.every(bu.contains)) continue;
+            final diff = bu.where((n) => !a.value.contains(n)).toList();
+            final dm = rem[bk]! - rem[a.key]!;
+            if (dm == 0) {
+              resolve(diff, isMine: false);
+            } else if (dm == diff.length) {
+              resolve(diff, isMine: true);
+            }
+          }
+        }
+      }
+    }
+    return left == 0;
   }
 
   /// Mo o (r,c). Tra ve danh sach o vua duoc mo (theo thu tu lan ra), rong neu

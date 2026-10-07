@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/daily/daily_challenge.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/howto/how_to_sheet.dart';
@@ -392,8 +393,9 @@ class GameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
+    final colors = Candy.forId(game.id);
+    const onCard = Colors.white;
     final stats = store.stats(game.id);
     final resume = store.hasState(game.id);
     final best = game.bestLabel(stats.best);
@@ -408,8 +410,19 @@ class GameCard extends StatelessWidget {
             onTap: () => context.go('/play/${game.id}'),
             child: Ink(
               decoration: BoxDecoration(
-                color: s.surfaceContainerHigh,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: colors,
+                ),
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white38, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Candy.deep(colors),
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
               child: Column(
@@ -418,7 +431,12 @@ class GameCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      IconTile(icon: game.icon, size: 48),
+                      IconTile(
+                        icon: game.icon,
+                        size: 48,
+                        background: Colors.white24,
+                        foreground: onCard,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Padding(
@@ -431,7 +449,8 @@ class GameCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: t.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
+                                  color: onCard,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -440,7 +459,7 @@ class GameCard extends StatelessWidget {
                                 maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                                 style: t.bodySmall?.copyWith(
-                                  color: s.onSurfaceVariant,
+                                  color: Colors.white70,
                                   height: 1.25,
                                 ),
                               ),
@@ -463,7 +482,7 @@ class GameCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: t.labelSmall?.copyWith(
-                                color: s.onSurfaceVariant,
+                                color: Colors.white70,
                               ),
                             ),
                             if (best != null)
@@ -472,8 +491,8 @@ class GameCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: t.labelSmall?.copyWith(
-                                  color: s.primary,
-                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                           ],
@@ -486,22 +505,20 @@ class GameCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: s.tertiaryContainer,
+                            color: Colors.white24,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.play_arrow_rounded,
                                 size: 14,
-                                color: s.onTertiaryContainer,
+                                color: onCard,
                               ),
                               Text(
                                 'Chơi tiếp',
-                                style: t.labelSmall?.copyWith(
-                                  color: s.onTertiaryContainer,
-                                ),
+                                style: t.labelSmall?.copyWith(color: onCard),
                               ),
                             ],
                           ),
@@ -520,7 +537,7 @@ class GameCard extends StatelessWidget {
             tooltip: 'Cách chơi ${game.title}',
             visualDensity: VisualDensity.compact,
             iconSize: 20,
-            icon: Icon(Icons.help_outline_rounded, color: s.onSurfaceVariant),
+            icon: const Icon(Icons.help_outline_rounded, color: Colors.white70),
             onPressed: () => showHowTo(context, game),
           ),
         ),

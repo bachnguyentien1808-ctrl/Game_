@@ -7,6 +7,23 @@ import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('ProgressStore: chuoi thang, thua dat lai chuoi, ti le thang', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = ProgressStore(await SharedPreferences.getInstance());
+    for (var i = 0; i < 3; i++) {
+      await store.recordStart('m');
+      await store.recordWin('m', score: 10, lowerIsBetter: true);
+    }
+    await store.recordStart('m');
+    await store.recordLoss('m');
+    await store.recordStart('m');
+    await store.recordWin('m', score: 9, lowerIsBetter: true);
+    final s = store.stats('m');
+    expect((s.played, s.won, s.streak, s.bestStreak), (5, 4, 1, 3));
+    expect(s.winRate, 80);
+    expect(const GameStats().winRate, isNull);
+  });
+
   test('ProgressStore: thong ke, ky luc, luu va xoa trang thai', () async {
     SharedPreferences.setMockInitialValues({});
     final store = ProgressStore(await SharedPreferences.getInstance());

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:puzzle_hub/core/router/app_router.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/theme/app_theme.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 
 class PuzzleHubApp extends ConsumerWidget {
   const PuzzleHubApp({super.key});
@@ -17,6 +18,10 @@ class PuzzleHubApp extends ConsumerWidget {
       darkTheme: AppTheme.build(s.seed, Brightness.dark),
       themeMode: s.themeMode,
       themeAnimationDuration: const Duration(milliseconds: 300),
+      builder: (context, child) => CandyBackground(
+        light: Theme.of(context).brightness == Brightness.light,
+        child: child ?? const SizedBox.shrink(),
+      ),
       routerConfig: appRouter,
     );
   }

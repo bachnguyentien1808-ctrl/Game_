@@ -11,6 +11,11 @@ abstract final class AppTheme {
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
+      scaffoldBackgroundColor: Colors.transparent,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+      ),
       cardTheme: const CardThemeData(elevation: 0),
     );
   }

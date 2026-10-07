@@ -31,6 +31,9 @@ class GameStore {
   Future<void> recordStart(String id) =>
       isDaily ? Future.value() : _s.recordStart(id);
 
+  Future<void> recordLoss(String id) =>
+      isDaily ? Future.value() : _s.recordLoss(id);
+
   Future<void> recordWin(String id, {int? score, bool lowerIsBetter = false}) =>
       isDaily
       ? _s.completeDaily(daily!, score: score)

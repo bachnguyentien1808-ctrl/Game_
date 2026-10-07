@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/games/minesweeper/domain/minesweeper_engine.dart';
 
@@ -14,6 +15,18 @@ const _id = 'minesweeper';
 const _prefsId = 'minesweeper.prefs';
 const _maxHints = 3;
 const _minCell = 32.0;
+
+/// Mau so 1-8 tren nen kem cua o da mo.
+const _numColors = [
+  Color(0xFF1565C0),
+  Color(0xFF2E7D32),
+  Color(0xFFD32F2F),
+  Color(0xFF7B1FA2),
+  Color(0xFFE65100),
+  Color(0xFF00838F),
+  Color(0xFFC2185B),
+  Color(0xFF5D4037),
+];
 
 typedef _Custom = ({int rows, int cols, int mines});
 
@@ -197,6 +210,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       Sfx.play(SfxKind.error);
       GameFx.error();
       _shake.currentState?.shake();
+      _recordLoss();
       _store.clearState(_id);
       return;
     }
@@ -259,6 +273,11 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     }
   }
 
+  void _recordLoss() {
+    if (_daily || _level == MineLevel.custom) return;
+    _store.recordLoss(_level.statsId);
+  }
+
   void _recordWin() {
     final secs = _seconds;
     if (_daily) {
@@ -314,7 +333,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       builder: (_) => _LevelSheet(
         current: _level,
         custom: _custom,
-        bestOf: (l) => _store.stats(l.statsId).best,
+        statsOf: (l) => _store.stats(l.statsId),
       ),
     );
     if (pick == null || !mounted) return;
@@ -336,104 +355,126 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
         : _game.lost
         ? Icons.sentiment_very_dissatisfied
         : Icons.sentiment_satisfied;
-    return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-        title: Text(
-          _game.won
-              ? 'Dò mìn - Thắng!'
-              : _game.lost
-              ? 'Dò mìn - Nổ mìn'
-              : 'Dò mìn',
-        ),
-        actions: [
-          IconButton(
-            key: const Key('hint'),
-            tooltip: 'Gợi ý (còn ${_maxHints - _hintsUsed})',
-            icon: const Icon(Icons.lightbulb_outline),
-            onPressed: _useHint,
+    return CandyBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
+          title: Text(
+            _game.won
+                ? 'Dò mìn - Thắng!'
+                : _game.lost
+                ? 'Dò mìn - Nổ mìn'
+                : 'Dò mìn',
           ),
-          if (!_daily)
+          actions: [
             IconButton(
-              key: const Key('level'),
-              tooltip: 'Độ khó',
-              icon: const Icon(Icons.tune),
-              onPressed: _pickLevel,
+              key: const Key('hint'),
+              tooltip: 'Gợi ý (còn ${_maxHints - _hintsUsed})',
+              icon: const Icon(Icons.lightbulb_outline),
+              onPressed: _useHint,
             ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _Counter(
-                          icon: Icons.flag,
-                          color: s.error,
-                          text: '${_game.flagsLeft}',
+            if (!_daily)
+              IconButton(
+                key: const Key('level'),
+                tooltip: 'Độ khó',
+                icon: const Icon(Icons.tune),
+                onPressed: _pickLevel,
+              ),
+          ],
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: CandyPill(
+                            icon: Icons.flag,
+                            colors: Candy.red,
+                            text: '${_game.flagsLeft}',
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton.filledTonal(
-                      key: const Key('smiley'),
-                      tooltip: _daily ? 'Chơi lại cùng đề' : 'Ván mới',
-                      iconSize: 34,
-                      icon: Icon(face),
-                      onPressed: () => setState(_newGame),
-                    ),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: _Counter(
-                          icon: Icons.timer_outlined,
-                          color: s.primary,
-                          text: '$_seconds s',
+                      CandyButton(
+                        key: const Key('smiley'),
+                        onPressed: () => setState(_newGame),
+                        colors: Candy.orange,
+                        circle: true,
+                        padding: const EdgeInsets.all(8),
+                        child: Tooltip(
+                          message: _daily ? 'Chơi lại cùng đề' : 'Ván mới',
+                          child: Icon(face, size: 34),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _daily
-                      ? 'Thử thách ngày · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
-                      : '${_level.label} · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
-                            '${best == null ? '' : ' · Kỷ lục: $best s'}',
-                  style: t.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                Expanded(child: _board(s)),
-                const SizedBox(height: 8),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: false,
-                      icon: Icon(Icons.touch_app),
-                      label: Text('Mở ô'),
-                    ),
-                    ButtonSegment(
-                      value: true,
-                      icon: Icon(Icons.flag),
-                      label: Text('Cắm cờ'),
-                    ),
-                  ],
-                  selected: {_flagMode},
-                  onSelectionChanged: (v) =>
-                      setState(() => _flagMode = v.first),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
-                  style: t.bodySmall,
-                ),
-              ],
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: CandyPill(
+                            icon: Icons.timer_outlined,
+                            colors: Candy.blue,
+                            text: '$_seconds s',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  CandyRibbon(
+                    text: _daily
+                        ? 'Thử thách ngày · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
+                        : '${_level.label} · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
+                              '${best == null ? '' : ' · Kỷ lục: $best s'}',
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(child: _board(s)),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CandyButton(
+                        onPressed: () => setState(() => _flagMode = false),
+                        dim: _flagMode,
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.touch_app),
+                            SizedBox(width: 6),
+                            Text('Mở ô'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      CandyButton(
+                        onPressed: () => setState(() => _flagMode = true),
+                        colors: Candy.orange,
+                        dim: !_flagMode,
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.flag),
+                            SizedBox(width: 6),
+                            Text('Cắm cờ'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
+                    style: t.bodySmall?.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -444,26 +485,28 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   Widget _board(ColorScheme s) {
     return LayoutBuilder(
       builder: (context, box) {
-        final fit = box.maxWidth / _game.cols;
+        final fit = (box.maxWidth - 40) / _game.cols;
         final cell = fit.clamp(_minCell, 46.0);
         final w = cell * _game.cols;
         final h = cell * _game.rows;
         final reduce = _reduce;
-        final boardW = max(box.maxWidth, w);
-        final boardH = max(box.maxHeight, h);
-        final grid = SizedBox(
-          width: w,
-          height: h,
-          child: Column(
-            children: [
-              for (var r = 0; r < _game.rows; r++)
-                Row(
-                  children: [
-                    for (var c = 0; c < _game.cols; c++)
-                      _tile(r, c, cell, reduce),
-                  ],
-                ),
-            ],
+        final boardW = max(box.maxWidth, w + 40);
+        final boardH = max(box.maxHeight, h + 40);
+        final grid = CandyFrame(
+          child: SizedBox(
+            width: w,
+            height: h,
+            child: Column(
+              children: [
+                for (var r = 0; r < _game.rows; r++)
+                  Row(
+                    children: [
+                      for (var c = 0; c < _game.cols; c++)
+                        _tile(r, c, cell, reduce),
+                    ],
+                  ),
+              ],
+            ),
           ),
         );
         return Stack(
@@ -527,27 +570,8 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
         delay: reduce ? Duration.zero : (_delays[i] ?? Duration.zero),
         animate: !reduce,
         hint: _hint == i,
+        alt: (r + c).isOdd,
       ),
-    );
-  }
-}
-
-class _Counter extends StatelessWidget {
-  const _Counter({required this.icon, required this.color, required this.text});
-
-  final IconData icon;
-  final Color color;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: 6),
-        Text(text, style: Theme.of(context).textTheme.titleLarge),
-      ],
     );
   }
 }
@@ -570,9 +594,11 @@ class _Tile extends StatefulWidget {
     required this.delay,
     required this.animate,
     required this.hint,
+    required this.alt,
     super.key,
   });
 
+  final bool alt;
   final double size;
   final _V data;
   final Duration delay;
@@ -586,6 +612,7 @@ class _Tile extends StatefulWidget {
 class _TileState extends State<_Tile> {
   late _V _vis = widget.data;
   bool _anim = false;
+  bool _down = false;
   Timer? _t;
 
   @override
@@ -614,24 +641,26 @@ class _TileState extends State<_Tile> {
     super.dispose();
   }
 
-  Color _numColor(int n, ColorScheme s) => switch (n) {
-    1 => Colors.blue,
-    2 => Colors.green,
-    3 => Colors.red,
-    4 => Colors.indigo,
-    _ => s.error,
-  };
+  Color _numColor(int n) => _numColors[(n - 1).clamp(0, 7)];
+
+  /// Nen o: chua mo = keo xanh duong/xanh la xen ke, da mo = kem, mine = do,
+  /// trung mine = cam vang.
+  List<Color> _bg(_V v) {
+    if (v.boom) return const [Color(0xFFFFE066), Color(0xFFFF6D00)];
+    if (v.mine) return Candy.red;
+    if (v.open) {
+      return widget.alt
+          ? const [Color(0xFFFFF4DC), Color(0xFFFBE6BE)]
+          : const [Color(0xFFFFEBC9), Color(0xFFF6DBAA)];
+    }
+    return widget.alt ? Candy.blue : Candy.green;
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = Theme.of(context).colorScheme;
     final v = _vis;
     final shown = v.open || v.mine;
-    final bg = v.mine
-        ? s.errorContainer
-        : v.open
-        ? s.surfaceContainerHighest
-        : s.primaryContainer;
     final fs = widget.size * 0.5;
     Widget? content;
     if (v.mine) {
@@ -640,11 +669,16 @@ class _TileState extends State<_Tile> {
         clipBehavior: Clip.none,
         children: [
           if (_anim) _Ring(size: widget.size, color: s.error, strong: v.boom),
-          Icon(Icons.brightness_7, size: fs + 2, color: s.onErrorContainer),
+          Icon(Icons.brightness_7, size: fs + 2, color: Colors.white),
         ],
       );
     } else if (v.flag) {
-      final icon = Icon(Icons.flag, size: fs + 2, color: s.error);
+      final icon = Icon(
+        Icons.flag,
+        size: fs + 4,
+        color: Colors.white,
+        shadows: const [Shadow(color: Color(0xFFD7263D), blurRadius: 6)],
+      );
       content = _anim
           ? TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: 1),
@@ -658,29 +692,44 @@ class _TileState extends State<_Tile> {
             )
           : icon;
     } else if (v.wrong) {
-      content = Icon(Icons.close, size: fs + 2, color: s.error);
+      content = Icon(Icons.close, size: fs + 2, color: Colors.redAccent);
     } else if (shown && v.near > 0) {
       content = Text(
         '${v.near}',
         style: TextStyle(
           fontWeight: FontWeight.w800,
           fontSize: fs,
-          color: _numColor(v.near, s),
+          color: _numColor(v.near),
         ),
       );
     }
+    final colors = _bg(v);
+    final raised = !shown;
     Widget box = Container(
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(4),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: colors,
+        ),
+        borderRadius: BorderRadius.circular(8),
         border: widget.hint
-            ? Border.all(color: s.tertiary, width: 3)
+            ? Border.all(color: const Color(0xFFFFEB3B), width: 3)
             : v.boom
-            ? Border.all(color: s.error, width: 2)
+            ? Border.all(color: Colors.white, width: 2)
+            : null,
+        boxShadow: raised
+            ? [BoxShadow(color: Candy.deep(colors), offset: const Offset(0, 3))]
             : null,
       ),
       alignment: Alignment.center,
-      child: content,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (raised || v.mine) const CandyGloss(radius: 6, opacity: 0.4),
+          ?content,
+        ],
+      ),
     );
     if (_anim && (v.open || v.mine)) {
       box = TweenAnimationBuilder<double>(
@@ -692,10 +741,36 @@ class _TileState extends State<_Tile> {
         child: box,
       );
     }
+    if (_anim && v.open && !v.mine && widget.delay == Duration.zero) {
+      box = Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          _Ring(
+            size: widget.size,
+            color: v.near > 0 ? _numColor(v.near) : const Color(0xFFFFC857),
+            strong: false,
+          ),
+          box,
+        ],
+      );
+    }
     return SizedBox(
       width: widget.size,
       height: widget.size,
-      child: Padding(padding: const EdgeInsets.all(1), child: box),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(1.5, 1.5, 1.5, 4),
+        child: Listener(
+          onPointerDown: (_) => setState(() => _down = true),
+          onPointerUp: (_) => setState(() => _down = false),
+          onPointerCancel: (_) => setState(() => _down = false),
+          child: AnimatedScale(
+            scale: _down && !v.open && widget.animate ? 0.86 : 1,
+            duration: const Duration(milliseconds: 80),
+            child: box,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -735,12 +810,12 @@ class _LevelSheet extends StatefulWidget {
   const _LevelSheet({
     required this.current,
     required this.custom,
-    required this.bestOf,
+    required this.statsOf,
   });
 
   final MineLevel current;
   final _Custom custom;
-  final int? Function(MineLevel) bestOf;
+  final GameStats Function(MineLevel) statsOf;
 
   @override
   State<_LevelSheet> createState() => _LevelSheetState();
@@ -753,6 +828,14 @@ class _LevelSheetState extends State<_LevelSheet> {
 
   void _pop(MineLevel l) =>
       Navigator.of(context).pop((l, (rows: _rows, cols: _cols, mines: _mines)));
+
+  String _levelInfo(MineLevel l) {
+    final st = widget.statsOf(l);
+    return '${l.rows}x${l.cols} · ${l.mines} mìn'
+        '${st.best == null ? '' : ' · Kỷ lục ${st.best} s'}'
+        '${st.played == 0 ? '' : '\nThắng ${st.won}/${st.played} (${st.winRate}%)'
+                  ' · Chuỗi ${st.streak} (cao nhất ${st.bestStreak})'}';
+  }
 
   void _clampMines() =>
       _mines = _mines.clamp(1, Minesweeper.maxMinesFor(_rows, _cols));
@@ -782,10 +865,8 @@ class _LevelSheetState extends State<_LevelSheet> {
                       : Icons.radio_button_off,
                 ),
                 title: Text(l.label),
-                subtitle: Text(
-                  '${l.rows}x${l.cols} · ${l.mines} mìn'
-                  '${widget.bestOf(l) == null ? '' : ' · Kỷ lục ${widget.bestOf(l)} s'}',
-                ),
+                isThreeLine: widget.statsOf(l).played > 0,
+                subtitle: Text(_levelInfo(l)),
                 onTap: () => _pop(l),
               ),
             const Divider(),

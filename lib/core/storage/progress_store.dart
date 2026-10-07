@@ -8,19 +8,40 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Thong ke mot game: so van da bat dau, so van thang, ky luc.
 class GameStats {
-  const GameStats({this.played = 0, this.won = 0, this.best});
+  const GameStats({
+    this.played = 0,
+    this.won = 0,
+    this.best,
+    this.streak = 0,
+    this.bestStreak = 0,
+  });
 
   factory GameStats.fromJson(Map<String, dynamic> j) => GameStats(
     played: j['played'] as int? ?? 0,
     won: j['won'] as int? ?? 0,
     best: j['best'] as int?,
+    streak: j['streak'] as int? ?? 0,
+    bestStreak: j['bestStreak'] as int? ?? 0,
   );
 
   final int played;
   final int won;
   final int? best;
 
-  Map<String, dynamic> toJson() => {'played': played, 'won': won, 'best': best};
+  /// Chuoi thang lien tiep hien tai va dai nhat (thua lam chuoi ve 0).
+  final int streak;
+  final int bestStreak;
+
+  /// Ti le thang theo phan tram, null neu chua choi van nao.
+  int? get winRate => played == 0 ? null : (won * 100 / played).round();
+
+  Map<String, dynamic> toJson() => {
+    'played': played,
+    'won': won,
+    'best': best,
+    'streak': streak,
+    'bestStreak': bestStreak,
+  };
 }
 
 /// Doc/ghi tien do va thong ke vao SharedPreferences.
@@ -53,7 +74,28 @@ class ProgressStore {
     final s = stats(id);
     return _putStats(
       id,
-      GameStats(played: s.played + 1, won: s.won, best: s.best),
+      GameStats(
+        played: s.played + 1,
+        won: s.won,
+        best: s.best,
+        streak: s.streak,
+        bestStreak: s.bestStreak,
+      ),
+    );
+  }
+
+  /// Ghi mot van thua: dat lai chuoi thang.
+  Future<void> recordLoss(String id) {
+    final s = stats(id);
+    if (s.streak == 0) return Future.value();
+    return _putStats(
+      id,
+      GameStats(
+        played: s.played,
+        won: s.won,
+        best: s.best,
+        bestStreak: s.bestStreak,
+      ),
     );
   }
 
@@ -66,6 +108,8 @@ class ProgressStore {
         played: s.played,
         won: s.won + 1,
         best: _better(s.best, score, lowerIsBetter),
+        streak: s.streak + 1,
+        bestStreak: max(s.bestStreak, s.streak + 1),
       ),
     );
   }
@@ -75,7 +119,16 @@ class ProgressStore {
     final s = stats(id);
     final b = _better(s.best, score, lowerIsBetter);
     if (b == s.best) return Future.value();
-    return _putStats(id, GameStats(played: s.played, won: s.won, best: b));
+    return _putStats(
+      id,
+      GameStats(
+        played: s.played,
+        won: s.won,
+        best: b,
+        streak: s.streak,
+        bestStreak: s.bestStreak,
+      ),
+    );
   }
 
   static int? _better(int? old, int? now, bool lower) {

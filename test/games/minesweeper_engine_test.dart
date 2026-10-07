@@ -183,4 +183,27 @@ void main() {
     }
     expect(found, greaterThan(0));
   });
+
+  test('Khong doan mo: ban sinh ra giai duoc bang suy luan tu o dau', () {
+    for (var seed = 0; seed < 30; seed++) {
+      final g = Minesweeper()..open(4, 4, rng: Random(seed));
+      expect(g.isLogicSolvable(4, 4), isTrue, reason: 'seed $seed');
+      expect(g.lost, isFalse);
+    }
+  });
+
+  test('Khong doan mo: ban Kho van sinh nhanh va hop le', () {
+    final sw = Stopwatch()..start();
+    final g = Minesweeper(rows: 16, cols: 30, mines: 99)
+      ..open(8, 15, rng: Random(3));
+    expect(sw.elapsed.inSeconds, lessThan(5));
+    expect(_minesOf(g).length, 99);
+    expect(g.lost, isFalse);
+  });
+
+  test('Tat noGuess: van dat dung so mine, tranh o dau', () {
+    final g = Minesweeper(noGuess: false)..open(4, 4, rng: Random(2));
+    expect(_minesOf(g).length, 10);
+    expect(g.cells[4][4].mine, isFalse);
+  });
 }
