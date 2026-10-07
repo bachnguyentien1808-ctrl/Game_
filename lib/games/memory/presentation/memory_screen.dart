@@ -7,6 +7,7 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:puzzle_hub/games/memory/presentation/memory_card_view.dart';
 
@@ -227,6 +228,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
         leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
         title: Text(_isDaily ? 'Tìm cặp - Thử thách ngày' : 'Tìm cặp'),
         actions: [
+          const HelpAction(gameId: 'memory'),
           IconButton(
             tooltip: _isDaily ? 'Chơi lại cùng đề' : 'Ván mới',
             icon: const Icon(Icons.refresh),

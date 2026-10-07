@@ -9,6 +9,7 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/game2048/domain/game2048_engine.dart';
 
 const _id = '2048';
@@ -295,6 +296,7 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
         leading: BackButton(onPressed: () => context.go('/')),
         title: Text('2048  ${_g.size}x${_g.size}'),
         actions: [
+          const HelpAction(gameId: '2048'),
           Badge.count(
             count: _g.undosLeft,
             child: IconButton(

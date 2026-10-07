@@ -137,6 +137,15 @@ class ProgressStore {
     return lower ? min(old, now) : max(old, now);
   }
 
+  static const _tutorialPrefix = 'tutorial.';
+
+  /// Da tu mo huong dan lan dau cua game [id] chua.
+  bool tutorialSeen(String id) =>
+      _prefs.getBool('$_tutorialPrefix$id') ?? false;
+
+  Future<void> markTutorialSeen(String id) =>
+      _prefs.setBool('$_tutorialPrefix$id', true);
+
   bool hasState(String id) => _prefs.containsKey('$_statePrefix$id');
 
   Map<String, dynamic>? loadState(String id) {

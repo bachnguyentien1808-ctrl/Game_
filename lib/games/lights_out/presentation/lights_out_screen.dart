@@ -5,6 +5,7 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
 import 'package:puzzle_hub/games/lights_out/presentation/lights_out_play.dart';
@@ -75,6 +76,7 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
   Widget _menu(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        actions: const [HelpAction(gameId: 'lights_out')],
         leading: BackButton(onPressed: () => context.go('/')),
         title: const Text('Tắt đèn'),
       ),

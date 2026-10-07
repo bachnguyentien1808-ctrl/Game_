@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
 
@@ -353,6 +354,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
         leading: BackButton(onPressed: widget.onExit),
         title: Text(_title),
         actions: [
+          const HelpAction(gameId: 'lights_out'),
           IconButton(
             tooltip: _s.mode == LightsMode.random ? 'Ván mới' : 'Chơi lại ván',
             icon: const Icon(Icons.refresh),

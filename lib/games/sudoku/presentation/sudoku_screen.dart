@@ -9,6 +9,7 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_game.dart';
 import 'package:puzzle_hub/games/sudoku/presentation/sudoku_board.dart';
@@ -529,6 +530,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
         title: Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
         actions: [
+          const HelpAction(gameId: 'sudoku'),
           if (g != null && !_daily)
             IconButton(
               tooltip: 'Ván mới',

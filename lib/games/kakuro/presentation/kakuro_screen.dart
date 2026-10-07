@@ -8,6 +8,7 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/kakuro/domain/kakuro_engine.dart';
 
 const _id = 'kakuro';
@@ -375,6 +376,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
         leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
         title: Text(_store.isDaily ? 'Kakuro - Thử thách ngày' : 'Kakuro'),
         actions: [
+          const HelpAction(gameId: 'kakuro'),
           if (_store.isDaily)
             IconButton(
               tooltip: 'Chơi lại đề hôm nay',

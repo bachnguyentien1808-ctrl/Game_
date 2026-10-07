@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
 
 /// Che do thao tac: to o, danh dau X, hoac di chuyen/phong to.
@@ -290,6 +291,7 @@ class _NonogramPlayState extends State<NonogramPlay>
           leading: BackButton(onPressed: _back),
           title: Text('${_pic.name} ${_n}x$_n'),
           actions: [
+            const HelpAction(gameId: 'nonogram'),
             IconButton(
               tooltip: 'Hoàn tác',
               icon: const Icon(Icons.undo),

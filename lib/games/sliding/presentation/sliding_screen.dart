@@ -8,6 +8,7 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/sliding/domain/sliding_engine.dart';
 import 'package:puzzle_hub/games/sliding/presentation/sliding_art.dart';
 
@@ -495,6 +496,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
               : 'Xếp số ${n}x$n${widget.daily != null ? ' · Hôm nay' : ''}',
         ),
         actions: [
+          const HelpAction(gameId: 'sliding'),
           IconButton(
             tooltip: widget.daily != null ? 'Chơi lại cùng đề' : 'Ván mới',
             icon: const Icon(Icons.refresh),

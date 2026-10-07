@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_progress.dart';
 import 'package:puzzle_hub/games/nonogram/presentation/nonogram_play.dart';
@@ -114,6 +115,7 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
     final total = nonogramPuzzles.length;
     return Scaffold(
       appBar: AppBar(
+        actions: const [HelpAction(gameId: 'nonogram')],
         leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
         title: const Text('Nonogram'),
       ),

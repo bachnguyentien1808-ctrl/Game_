@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/home/home_screen.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/features/settings/settings_screen.dart';
 import 'package:puzzle_hub/features/stats/stats_screen.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
@@ -41,6 +42,10 @@ final appRouter = GoRouter(
     _route('/stats', (_) => const StatsScreen()),
     _route('/daily', (_) => const DailyScreen()),
     _route('/daily/play', (_) => const DailyPlayScreen()),
-    for (final g in gameRegistry) _route('/play/${g.id}', g.builder),
+    for (final g in gameRegistry)
+      _route(
+        '/play/${g.id}',
+        (c) => GameIntro(gameId: g.id, child: g.builder(c)),
+      ),
   ],
 );

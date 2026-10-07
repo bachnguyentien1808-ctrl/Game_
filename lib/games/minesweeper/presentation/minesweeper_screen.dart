@@ -9,6 +9,7 @@ import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/minesweeper/domain/minesweeper_engine.dart';
 
 const _id = 'minesweeper';
@@ -370,6 +371,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                 : 'Dò mìn',
           ),
           actions: [
+            const HelpAction(gameId: 'minesweeper'),
             IconButton(
               key: const Key('hint'),
               tooltip: 'Gợi ý (còn ${_maxHints - _hintsUsed})',
