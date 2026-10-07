@@ -46,12 +46,16 @@ class MemorySymbol extends StatelessWidget {
     required this.set,
     required this.symbol,
     required this.size,
+    this.color,
     super.key,
   });
 
   final MemorySet set;
   final int symbol;
   final double size;
+
+  /// Ghi de mau hinh (vd trang tren the mau keo); null = mau theo bo hinh.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -61,13 +65,15 @@ class MemorySymbol extends StatelessWidget {
         return Icon(
           memoryIcons[symbol % memoryIcons.length],
           size: size,
-          color: s.onPrimaryContainer,
+          color: color ?? s.onPrimaryContainer,
         );
       case MemorySet.shapes:
         return Icon(
           _shapeIcons[symbol % _shapeIcons.length],
           size: size,
-          color: _palette[(symbol ~/ _shapeIcons.length) % _palette.length],
+          color:
+              color ??
+              _palette[(symbol ~/ _shapeIcons.length) % _palette.length],
         );
       case MemorySet.letters:
         return Text(
@@ -76,7 +82,7 @@ class MemorySymbol extends StatelessWidget {
             fontSize: size,
             fontWeight: FontWeight.w800,
             height: 1,
-            color: _palette[symbol % _palette.length],
+            color: color ?? _palette[symbol % _palette.length],
           ),
         );
     }

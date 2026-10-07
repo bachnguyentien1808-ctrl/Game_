@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 
@@ -18,6 +19,14 @@ IconData levelIcon(SudokuLevel l) => switch (l) {
   SudokuLevel.medium => Icons.signal_cellular_alt_2_bar,
   SudokuLevel.hard => Icons.signal_cellular_alt,
   SudokuLevel.expert => Icons.local_fire_department_outlined,
+};
+
+/// Mau rieng cua tung do kho.
+List<Color> levelColors(SudokuLevel l) => switch (l) {
+  SudokuLevel.easy => Candy.green,
+  SudokuLevel.medium => Candy.blue,
+  SudokuLevel.hard => Candy.orange,
+  SudokuLevel.expert => Candy.red,
 };
 
 /// Hang nut thao tac: hoan tac, lam lai, xoa, ghi chu, goi y.
@@ -47,33 +56,41 @@ class SudokuActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     return Row(
       children: [
         _Act(
           icon: Icons.undo,
           label: 'Hoàn tác',
+          colors: Candy.blue,
           onTap: canUndo ? onUndo : null,
         ),
         _Act(
           icon: Icons.redo,
           label: 'Làm lại',
+          colors: Candy.indigo,
           onTap: canRedo ? onRedo : null,
         ),
-        _Act(icon: Icons.backspace_outlined, label: 'Xoá', onTap: onErase),
+        _Act(
+          icon: Icons.backspace_outlined,
+          label: 'Xoá',
+          colors: Candy.red,
+          onTap: onErase,
+        ),
         _Act(
           icon: notesOn ? Icons.edit : Icons.edit_outlined,
           label: 'Ghi chú',
+          colors: Candy.orange,
           active: notesOn,
           badge: notesOn ? 'BẬT' : 'TẮT',
-          badgeColor: notesOn ? s.primary : s.outline,
+          badgeColor: notesOn ? Candy.green.last : Colors.blueGrey,
           onTap: onNotes,
         ),
         _Act(
           icon: Icons.lightbulb_outline,
           label: 'Gợi ý',
+          colors: Candy.teal,
           badge: '$hintsLeft',
-          badgeColor: hintsLeft > 0 ? s.tertiary : s.outline,
+          badgeColor: hintsLeft > 0 ? Candy.orange.last : Colors.blueGrey,
           onTap: hintsLeft > 0 ? onHint : null,
         ),
       ],
@@ -85,43 +102,33 @@ class _Act extends StatelessWidget {
   const _Act({
     required this.icon,
     required this.label,
+    required this.colors,
     required this.onTap,
-    this.active = false,
+    this.active = true,
     this.badge,
     this.badgeColor,
   });
 
   final IconData icon;
   final String label;
+  final List<Color> colors;
   final VoidCallback? onTap;
+
+  /// false = nut tat (mo di).
   final bool active;
   final String? badge;
   final Color? badgeColor;
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     final enabled = onTap != null;
-    final fg = !enabled
-        ? s.onSurface.withValues(alpha: 0.35)
-        : active
-        ? s.primary
-        : s.onSurfaceVariant;
-    Widget ic = AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: active ? s.primaryContainer : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, color: fg, size: 24),
-    );
+    Widget ic = Icon(icon, size: 24);
     if (badge != null) {
       ic = Badge(
         label: Text(badge!),
         backgroundColor: badgeColor,
-        textColor: s.surface,
-        offset: const Offset(6, -2),
+        textColor: Colors.white,
+        offset: const Offset(10, -4),
         child: ic,
       );
     }
@@ -129,24 +136,34 @@ class _Act extends StatelessWidget {
       child: Semantics(
         button: true,
         label: label,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ic,
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: fg),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Opacity(
+            opacity: enabled ? 1 : 0.55,
+            child: CandyButton(
+              colors: colors,
+              dim: !enabled || !active,
+              radius: 12,
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              onPressed: onTap,
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ic,
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -171,7 +188,6 @@ class SudokuNumPad extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     return Row(
       children: [
         for (var d = 1; d <= 9; d++)
@@ -181,42 +197,37 @@ class SudokuNumPad extends StatelessWidget {
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 250),
                 opacity: remaining[d - 1] <= 0 ? 0.3 : 1,
-                child: Material(
-                  color: notesOn ? s.surfaceContainerHigh : s.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    key: ValueKey('sudoku-pad-$d'),
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: remaining[d - 1] <= 0 ? null : () => onDigit(d),
-                    child: SizedBox(
-                      height: 58,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$d',
-                            style: TextStyle(
-                              fontSize: notesOn ? 20 : 24,
-                              height: 1.1,
-                              fontWeight: FontWeight.w600,
-                              color: notesOn
-                                  ? s.onSurfaceVariant
-                                  : s.onPrimaryContainer,
-                            ),
+                child: CandyButton(
+                  key: ValueKey('sudoku-pad-$d'),
+                  colors: Candy.palettes[(d - 1) % Candy.palettes.length],
+                  dim: notesOn,
+                  radius: 10,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  onPressed: remaining[d - 1] <= 0 ? null : () => onDigit(d),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$d',
+                          style: TextStyle(
+                            fontSize: notesOn ? 19 : 23,
+                            height: 1.1,
+                            fontWeight: FontWeight.w900,
                           ),
-                          Text(
-                            remaining[d - 1] <= 0 ? '' : '${remaining[d - 1]}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color:
-                                  (notesOn
-                                          ? s.onSurfaceVariant
-                                          : s.onPrimaryContainer)
-                                      .withValues(alpha: 0.7),
-                            ),
+                        ),
+                        Text(
+                          remaining[d - 1] <= 0 ? '' : '${remaining[d - 1]}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            height: 1.1,
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -243,8 +254,6 @@ class SudokuLevelPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -254,42 +263,45 @@ class SudokuLevelPicker extends StatelessWidget {
             trigger: l,
             duration: Duration(milliseconds: 220 + 60 * k),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Material(
-                color: l == current
-                    ? s.primaryContainer
-                    : s.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  key: ValueKey('sudoku-level-${l.name}'),
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => onPick(l),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(levelIcon(l), size: 30, color: s.primary),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(l.label, style: t.titleMedium),
-                              Text(
-                                _sub(stats(l)),
-                                style: t.bodySmall?.copyWith(
-                                  color: s.onSurfaceVariant,
-                                ),
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: CandyButton(
+                key: ValueKey('sudoku-level-${l.name}'),
+                colors: levelColors(l),
+                radius: 18,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                onPressed: () => onPick(l),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Row(
+                    children: [
+                      Icon(levelIcon(l), size: 30),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(l.label, style: const TextStyle(fontSize: 17)),
+                            Text(
+                              _sub(stats(l)),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        Icon(Icons.play_arrow_rounded, color: s.primary),
-                      ],
-                    ),
+                      ),
+                      Icon(
+                        l == current
+                            ? Icons.star_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 28,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -332,62 +344,79 @@ class SudokuResultPanel extends StatelessWidget {
   final String title;
   final List<Widget> actions;
 
+  static const _ink = Color(0xFF5A3410);
+
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
+    final colors = won
+        ? const [Candy.cream, Candy.creamDeep]
+        : const [Color(0xFFFFE0DA), Color(0xFFF5AFA6)];
     return PopIn(
-      child: Card(
-        elevation: 0,
-        color: won ? s.primaryContainer : s.errorContainer,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Candy.gold, width: 3),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: colors,
+          ),
+          boxShadow: const [
+            BoxShadow(color: Color(0xFFB07A3E), offset: Offset(0, 5)),
+            BoxShadow(
+              color: Color(0x66000000),
+              offset: Offset(0, 9),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(color: _ink, fontWeight: FontWeight.w700),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 won ? Icons.emoji_events : Icons.heart_broken_outlined,
-                size: 48,
-                color: won ? s.onPrimaryContainer : s.onErrorContainer,
+                size: 52,
+                color: won ? Candy.orange.last : Candy.red.last,
               ),
               const SizedBox(height: 6),
-              Text(title, style: t.headlineSmall, textAlign: TextAlign.center),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: _ink,
+                ),
+              ),
               if (newRecord) ...[
-                const SizedBox(height: 6),
-                PopIn(
-                  duration: const Duration(milliseconds: 500),
-                  child: Chip(
-                    avatar: Icon(Icons.star_rounded, color: s.tertiary),
-                    label: const Text('Kỷ lục mới!'),
-                  ),
+                const SizedBox(height: 8),
+                const PopIn(
+                  duration: Duration(milliseconds: 500),
+                  child: CandyRibbon(text: 'Kỷ lục mới!', colors: Candy.orange),
                 ),
               ],
               const SizedBox(height: 12),
+              _row(Icons.timer_outlined, 'Thời gian', formatClock(seconds)),
               _row(
-                context,
-                Icons.timer_outlined,
-                'Thời gian',
-                formatClock(seconds),
-              ),
-              _row(
-                context,
                 Icons.close_rounded,
                 'Lỗi',
                 mistakeLimit ? '$mistakes/3' : '$mistakes',
               ),
-              _row(context, Icons.lightbulb_outline, 'Gợi ý đã dùng', '$hints'),
+              _row(Icons.lightbulb_outline, 'Gợi ý đã dùng', '$hints'),
               if (best != null)
                 _row(
-                  context,
                   Icons.workspace_premium_outlined,
                   'Kỷ lục',
                   formatClock(best!),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Wrap(
                 alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 10,
+                runSpacing: 10,
                 children: actions,
               ),
             ],
@@ -397,17 +426,17 @@ class SudokuResultPanel extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, IconData i, String k, String v) => Padding(
+  Widget _row(IconData i, String k, String v) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       children: [
-        Icon(i, size: 20),
+        Icon(i, size: 20, color: Candy.brown),
         const SizedBox(width: 10),
         Expanded(child: Text(k)),
         Text(
           v,
           style: const TextStyle(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w900,
             fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),

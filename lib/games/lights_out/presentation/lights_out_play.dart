@@ -1,9 +1,14 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
@@ -95,6 +100,8 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   bool _banner = false;
   int _stars = 0;
   int _starsShown = 0;
+  int? _points;
+  final Stopwatch _clock = Stopwatch();
 
   GameStore get _store => widget.store;
   LightsSession get _s => widget.session;
@@ -194,6 +201,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
 
   void _tap(int r, int c) {
     if (_won) return;
+    _clock.start();
     setState(() {
       _game.press(r, c);
       _hint = null;
@@ -234,6 +242,24 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
       case LightsMode.daily:
         _store.recordWin(lightsOutId, score: _game.moves, lowerIsBetter: true);
     }
+    _clock.stop();
+    final size = _game.size;
+    final mult = switch (size) {
+      3 => 0.6,
+      4 => 0.9,
+      5 => 1.3,
+      _ => 1.8,
+    };
+    final pts = Scoring.points(
+      base: 800,
+      seconds: _clock.elapsed.inSeconds,
+      parSeconds: size * size * 6,
+      mult: mult,
+      mistakes: max(0, _game.moves - opt) ~/ 2,
+      hints: _game.hintsUsed,
+    );
+    _points = pts;
+    _store.awardPoints(lightsOutId, pts);
     _store.clearState(_stateId);
     GameFx.success();
     Sfx.play(SfxKind.win);
@@ -327,6 +353,10 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
         _game.reset();
       }
       _won = false;
+      _points = null;
+      _clock
+        ..stop()
+        ..reset();
       _banner = false;
       _starsShown = 0;
       _hint = null;
@@ -343,189 +373,206 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final s = t.colorScheme;
     final best = _s.mode == LightsMode.level
         ? null
         : _store.stats('$lightsOutId.${_game.size}').best;
     final reduce = MediaQuery.of(context).disableAnimations;
-    return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: widget.onExit),
-        title: Text(_title),
-        actions: [
-          const HelpAction(gameId: 'lights_out'),
-          IconButton(
-            tooltip: _s.mode == LightsMode.random ? 'Ván mới' : 'Chơi lại ván',
-            icon: const Icon(Icons.refresh),
-            onPressed: _restart,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _Chip(
-                          icon: Icons.touch_app_outlined,
-                          text: 'Lượt ${_game.moves}',
-                          strong: true,
-                        ),
-                        _Chip(
-                          icon: Icons.flag_outlined,
-                          text: 'Tối ưu ${_game.optimal ?? '?'}',
-                        ),
-                        if (best != null)
-                          _Chip(
-                            icon: Icons.emoji_events_outlined,
-                            text: 'Kỷ lục $best',
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Flexible(
-                      child: Center(
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: _Board(
-                            shown: _shown,
-                            hint: _hint,
-                            reduce: reduce,
-                            onTap: _tap,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    if (!_won)
-                      Row(
+    return CandyBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          leading: BackButton(onPressed: widget.onExit),
+          title: Text(_title),
+          actions: [
+            const ScoreChip(),
+            const HelpAction(gameId: 'lights_out'),
+            IconButton(
+              tooltip: _s.mode == LightsMode.random
+                  ? 'Ván mới'
+                  : 'Chơi lại ván',
+              icon: const Icon(Icons.refresh),
+              onPressed: _restart,
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      GlassBar(
                         children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _game.canUndo ? _undo : null,
-                              icon: const Icon(Icons.undo),
-                              label: const Text('Hoàn tác'),
-                            ),
+                          _stat(
+                            Icons.touch_app_outlined,
+                            Candy.blue,
+                            'Lượt ${_game.moves}',
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _game.canRedo ? _redo : null,
-                              icon: const Icon(Icons.redo),
-                              label: const Text('Làm lại'),
-                            ),
+                          _stat(
+                            Icons.flag_outlined,
+                            Candy.green,
+                            'Tối ưu ${_game.optimal ?? '?'}',
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: FilledButton.tonalIcon(
-                              onPressed: _game.hintsLeft > 0 && _hint == null
-                                  ? _showHint
-                                  : null,
-                              icon: const Icon(Icons.tips_and_updates_outlined),
-                              label: Text('Gợi ý ${_game.hintsLeft}'),
+                          if (best != null)
+                            _stat(
+                              Icons.emoji_events_outlined,
+                              Candy.orange,
+                              'Kỷ lục $best',
                             ),
-                          ),
                         ],
-                      )
-                    else if (_banner)
-                      Row(
-                        children: [
-                          if (_s.mode == LightsMode.level &&
-                              widget.onNextLevel != null) ...[
-                            Expanded(
-                              child: FilledButton(
-                                onPressed: widget.onNextLevel,
-                                child: const Text('Màn kế tiếp'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: widget.onExit,
-                              child: Text(
-                                _s.mode == LightsMode.level
-                                    ? 'Danh sách màn'
-                                    : 'Thoát',
+                      ),
+                      const SizedBox(height: 14),
+                      Flexible(
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: CandyFrame(
+                              child: _Board(
+                                shown: _shown,
+                                hint: _hint,
+                                reduce: reduce,
+                                onTap: _tap,
                               ),
                             ),
                           ),
-                        ],
-                      )
-                    else
-                      const SizedBox(height: 40),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Bấm một ô sẽ đảo ô đó và 4 ô kề bên',
-                      style: t.textTheme.bodySmall?.copyWith(
-                        color: s.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+                      if (!_won)
+                        GlassPanel(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _action(
+                                  Icons.undo,
+                                  'Hoàn tác',
+                                  Candy.blue,
+                                  _game.canUndo ? _undo : null,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _action(
+                                  Icons.redo,
+                                  'Làm lại',
+                                  Candy.indigo,
+                                  _game.canRedo ? _redo : null,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _action(
+                                  Icons.tips_and_updates_outlined,
+                                  'Gợi ý ${_game.hintsLeft}',
+                                  Candy.orange,
+                                  _game.hintsLeft > 0 && _hint == null
+                                      ? _showHint
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (_banner)
+                        GlassPanel(
+                          child: Row(
+                            children: [
+                              if (_s.mode == LightsMode.level &&
+                                  widget.onNextLevel != null) ...[
+                                Expanded(
+                                  child: CandyButton(
+                                    onPressed: widget.onNextLevel,
+                                    colors: Candy.green,
+                                    child: const Text('Màn kế tiếp'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: CandyButton(
+                                  onPressed: widget.onExit,
+                                  child: Text(
+                                    _s.mode == LightsMode.level
+                                        ? 'Danh sách màn'
+                                        : 'Thoát',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 40),
+                      const SizedBox(height: 10),
+                      const CandyRibbon(
+                        text: 'Bấm một ô sẽ đảo ô đó và 4 ô kề bên',
+                        colors: Candy.indigo,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          if (_banner)
+            if (_banner)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Align(
+                    alignment: const Alignment(0, -0.62),
+                    child: _StarsRow(shown: _starsShown, total: 3),
+                  ),
+                ),
+              ),
             Positioned.fill(
-              child: IgnorePointer(
-                child: Align(
-                  alignment: const Alignment(0, -0.62),
-                  child: _StarsRow(shown: _starsShown, total: 3),
-                ),
+              child: WinBanner(
+                show: _banner,
+                points: _points,
+                title: 'Tắt hết đèn!',
+                subtitle:
+                    '${_game.moves} lượt (tối ưu ${_game.optimal ?? '?'})',
+                onAgain: _restart,
               ),
             ),
-          Positioned.fill(
-            child: WinBanner(
-              show: _banner,
-              title: 'Tắt hết đèn!',
-              subtitle: '${_game.moves} lượt (tối ưu ${_game.optimal ?? '?'})',
-              onAgain: _restart,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.icon, required this.text, this.strong = false});
-
-  final IconData icon;
-  final String text;
-  final bool strong;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: strong ? s.primaryContainer : s.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
+  Widget _stat(IconData icon, List<Color> colors, String text) {
+    return Flexible(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: GlassStat(icon: icon, colors: colors, text: text),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.labelLarge
-                ?.copyWith(fontWeight: strong ? FontWeight.w700 : null),
-          ),
-        ],
+    );
+  }
+
+  Widget _action(
+    IconData icon,
+    String label,
+    List<Color> colors,
+    VoidCallback? onPressed,
+  ) {
+    return CandyButton(
+      onPressed: onPressed,
+      colors: colors,
+      dim: onPressed == null,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 4),
+            Text(label),
+          ],
+        ),
       ),
     );
   }
@@ -604,7 +651,7 @@ class _Board extends StatelessWidget {
   }
 }
 
-class _Cell extends StatelessWidget {
+class _Cell extends StatefulWidget {
   const _Cell({
     required this.lit,
     required this.hint,
@@ -619,69 +666,130 @@ class _Cell extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_Cell> createState() => _CellState();
+}
+
+class _CellState extends State<_Cell> with SingleTickerProviderStateMixin {
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+  bool _down = false;
+
+  @override
+  void didUpdateWidget(_Cell old) {
+    super.didUpdateWidget(old);
+    if (old.lit != widget.lit && !widget.reduce) _pop.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    final dur = reduce ? Duration.zero : const Duration(milliseconds: 240);
+    final lit = widget.lit;
+    final dur = widget.reduce
+        ? Duration.zero
+        : const Duration(milliseconds: 240);
     return LayoutBuilder(
       builder: (_, box) {
         final side = box.biggest.shortestSide;
-        final radius = BorderRadius.circular(side * 0.2);
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: AnimatedContainer(
-                duration: dur,
-                curve: Curves.easeOut,
-                decoration: BoxDecoration(
-                  color: lit ? s.tertiary : s.surfaceContainerHighest,
-                  borderRadius: radius,
-                  boxShadow: lit
-                      ? [
-                          BoxShadow(
-                            color: s.tertiary.withValues(alpha: 0.6),
-                            blurRadius: side * 0.35,
-                            spreadRadius: side * 0.03,
-                          ),
-                        ]
-                      : const [],
+        final radius = BorderRadius.circular(side * 0.32);
+        final gem = AnimatedContainer(
+          duration: dur,
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(
+              color: lit ? const Color(0xFFFFF3B0) : const Color(0xFF0E2233),
+              width: 2,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: lit
+                  ? const [
+                      Color(0xFFFFF176),
+                      Color(0xFFFFB300),
+                      Color(0xFFFF8F00),
+                    ]
+                  : const [Color(0xFF16293B), Color(0xFF2A4560)],
+            ),
+            boxShadow: lit
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFFB300).withValues(alpha: 0.75),
+                      blurRadius: side * 0.45,
+                      spreadRadius: side * 0.05,
+                    ),
+                    const BoxShadow(
+                      color: Color(0xFFC46A00),
+                      offset: Offset(0, 3),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(color: Color(0x33FFFFFF), offset: Offset(0, 1.5)),
+                  ],
+          ),
+          child: Stack(
+            children: [
+              if (lit) CandyGloss(radius: side * 0.28, opacity: 0.5),
+              Center(
+                child: AnimatedScale(
+                  duration: dur,
+                  curve: Curves.easeOutBack,
+                  scale: lit ? 1 : 0.7,
+                  child: Icon(
+                    lit ? Icons.lightbulb : Icons.lightbulb_outline,
+                    size: side * 0.5,
+                    color: lit
+                        ? Colors.white
+                        : const Color(0xFF6C8AA6).withValues(alpha: 0.6),
+                  ),
                 ),
-                child: Center(
+              ),
+            ],
+          ),
+        );
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _down = true),
+          onTapCancel: () => setState(() => _down = false),
+          onTapUp: (_) => setState(() => _down = false),
+          onTap: widget.onTap,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _pop,
+                  builder: (_, child) {
+                    final k = _pop.isAnimating
+                        ? 1 + 0.16 * sin(_pop.value * pi)
+                        : 1.0;
+                    return Transform.scale(scale: k, child: child);
+                  },
                   child: AnimatedScale(
-                    duration: dur,
-                    curve: Curves.easeOutBack,
-                    scale: lit ? 1 : 0.7,
-                    child: Icon(
-                      lit ? Icons.lightbulb : Icons.lightbulb_outline,
-                      size: side * 0.5,
-                      color: lit
-                          ? s.onTertiary
-                          : s.outline.withValues(alpha: 0.4),
+                    scale: _down ? 0.88 : 1,
+                    duration: const Duration(milliseconds: 80),
+                    child: gem,
+                  ),
+                ),
+              ),
+              if (widget.hint)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: _PulseRing(
+                      color: const Color(0xFF7CF5FF),
+                      radius: radius,
+                      animate: !widget.reduce,
                     ),
                   ),
                 ),
-              ),
-            ),
-            Positioned.fill(
-              child: Material(
-                type: MaterialType.transparency,
-                child: InkWell(
-                  borderRadius: radius,
-                  splashColor: s.primary.withValues(alpha: 0.35),
-                  onTap: onTap,
-                ),
-              ),
-            ),
-            if (hint)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: _PulseRing(
-                    color: s.primary,
-                    radius: radius,
-                    animate: !reduce,
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );

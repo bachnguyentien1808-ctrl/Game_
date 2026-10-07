@@ -7,6 +7,25 @@ import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test(
+    'ProgressStore: cong diem theo game va tong, resetAll xoa het',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = ProgressStore(await SharedPreferences.getInstance());
+      expect(store.totalPoints, 0);
+      await store.addPoints('a', 500);
+      await store.addPoints('b', 250);
+      await store.addPoints('a', 100);
+      await store.addPoints('a', 0);
+      expect(store.gamePoints('a'), 600);
+      expect(store.gamePoints('b'), 250);
+      expect(store.totalPoints, 850);
+      await store.resetAll();
+      expect(store.totalPoints, 0);
+      expect(store.gamePoints('a'), 0);
+    },
+  );
+
   test('ProgressStore: chuoi thang, thua dat lai chuoi, ti le thang', () async {
     SharedPreferences.setMockInitialValues({});
     final store = ProgressStore(await SharedPreferences.getInstance());

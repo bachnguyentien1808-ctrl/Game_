@@ -66,6 +66,10 @@ void main() {
     expect(sp.getString('stats.minesweeper.easy'), contains('"won":1'));
     expect(sp.getString('stats.minesweeper'), contains('"best":7'));
     expect(sp.containsKey('state.minesweeper'), isFalse);
+    // 7 giay tren ban De: nhanh nen duoc diem toi da (1000), cong vao tong.
+    expect(sp.getInt('score.total'), 1000);
+    expect(sp.getInt('score.game.minesweeper'), 1000);
+    expect(find.textContaining('điểm'), findsWidgets);
     await _end(tester);
   });
 

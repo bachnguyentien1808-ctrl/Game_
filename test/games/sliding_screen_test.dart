@@ -57,7 +57,15 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 200));
     }
-    expect(find.text('0'), findsNothing);
+    // Chi con '0' cua o tong diem tren AppBar, khong o so nao hien so 0.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('score-chip')),
+        matching: find.text('0'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('0'), findsOneWidget);
     expect(find.text('Lượt'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpWidget(const SizedBox());

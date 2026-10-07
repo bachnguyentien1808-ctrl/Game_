@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:puzzle_hub/games/memory/presentation/memory_card_view.dart';
@@ -43,6 +48,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   bool _peeking = false;
   bool _showResult = false;
   bool _newRecord = false;
+  int? _points;
   final Set<int> _bad = {};
 
   bool get _isDaily => widget.daily != null;
@@ -111,6 +117,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       _peeking = false;
       _showResult = false;
       _newRecord = false;
+      _points = null;
       _bad.clear();
     });
     _intro.forward(from: 0);
@@ -179,6 +186,19 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
 
   void _onWin() {
     final g = _game;
+    if (_points == null) {
+      final pairs = g.size.pairs;
+      final pts = Scoring.points(
+        base: 800,
+        seconds: g.seconds,
+        parSeconds: pairs * 10,
+        mult: max(0.5, pairs / 8),
+        mistakes: max(0, g.moves - pairs) ~/ 2,
+        hints: g.peeksUsed,
+      );
+      _points = pts;
+      _store.awardPoints(_id, pts);
+    }
     final prev = _store.stats(g.size.statsId).best;
     _newRecord = !_isDaily && (prev == null || g.moves < prev);
     if (_isDaily) {
@@ -224,10 +244,13 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
     final s = Theme.of(context).colorScheme;
     final best = _store.stats(_game.size.statsId).best;
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
         title: Text(_isDaily ? 'Tìm cặp - Thử thách ngày' : 'Tìm cặp'),
         actions: [
+          const ScoreChip(),
           const HelpAction(gameId: 'memory'),
           IconButton(
             tooltip: _isDaily ? 'Chơi lại cùng đề' : 'Ván mới',
@@ -246,10 +269,19 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
                 child: Column(
                   children: [
                     _statsRow(s, best),
+                    const SizedBox(height: 10),
+                    CandyRibbon(
+                      text:
+                          '${_game.size.label} · ${_game.size.pairs} cặp'
+                          '${best == null ? '' : ' · Kỷ lục: $best lượt'}',
+                    ),
                     const SizedBox(height: 12),
                     Expanded(child: _board(s)),
                     const SizedBox(height: 12),
-                    _actions(),
+                    GlassPanel(
+                      padding: const EdgeInsets.all(10),
+                      child: _actions(),
+                    ),
                   ],
                 ),
               ),
@@ -258,6 +290,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
           WinBanner(
             show: _showResult,
             title: 'Hoàn thành!',
+            points: _points,
             subtitle:
                 '${_game.moves} lượt · ${_fmt(_game.seconds)} · '
                 '${_game.stars} sao',
@@ -269,17 +302,21 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   }
 
   Widget _statsRow(ColorScheme s, int? best) {
-    return Row(
+    return GlassBar(
       children: [
-        _Stat(Icons.timer_outlined, _fmt(_game.seconds), 'Thời gian'),
-        _Stat(Icons.touch_app_outlined, '${_game.moves}', 'Lượt'),
+        _Stat(
+          Icons.timer_outlined,
+          _fmt(_game.seconds),
+          'Thời gian',
+          Candy.blue,
+        ),
+        _Stat(Icons.touch_app_outlined, '${_game.moves}', 'Lượt', Candy.green),
         _Stat(
           Icons.local_fire_department,
           'x${_game.combo}',
           'Chuỗi',
-          highlight: _game.combo >= 2,
+          _game.combo >= 2 ? Candy.orange : Candy.purple,
         ),
-        _Stat(Icons.emoji_events_outlined, best?.toString() ?? '-', 'Kỷ lục'),
       ],
     );
   }
@@ -290,73 +327,89 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       builder: (context, box) {
         final gap = size.cols >= 6 ? 6.0 : 8.0;
         final cell = [
-          (box.maxWidth - gap * (size.cols - 1)) / size.cols,
-          (box.maxHeight - gap * (size.rows - 1)) / size.rows,
+          (box.maxWidth - 30 - gap * (size.cols - 1)) / size.cols,
+          (box.maxHeight - 34 - gap * (size.rows - 1)) / size.rows,
         ].reduce((a, b) => a < b ? a : b).clamp(20.0, 140.0);
         final w = cell * size.cols + gap * (size.cols - 1);
         final h = cell * size.rows + gap * (size.rows - 1);
         return Center(
-          child: SizedBox(
-            width: w,
-            height: h,
-            child: Stack(
-              children: [
-                GridView.count(
-                  crossAxisCount: size.cols,
-                  mainAxisSpacing: gap,
-                  crossAxisSpacing: gap,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    for (var i = 0; i < _game.cards.length; i++)
-                      MemoryCardView(
-                        key: ValueKey('memory-card-$_gen-$i'),
-                        set: _game.set,
-                        symbol: _game.cards[i].symbol,
-                        visible:
-                            !_paused &&
-                            (_game.cards[i].faceUp ||
-                                _game.cards[i].matched ||
-                                _peeking),
-                        matched: _game.cards[i].matched,
-                        mismatch: _bad.contains(i),
-                        intro: _intro,
-                        index: i,
-                        total: _game.cards.length,
-                        onTap: () => _onTap(i),
-                      ),
-                  ],
-                ),
-                if (_paused)
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: s.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.pause_circle,
-                              size: 56,
-                              color: s.primary,
-                            ),
-                            const SizedBox(height: 8),
-                            const Text('Đã tạm dừng'),
-                            const SizedBox(height: 12),
-                            FilledButton.icon(
-                              key: const ValueKey('memory-resume'),
-                              onPressed: _togglePause,
-                              icon: const Icon(Icons.play_arrow),
-                              label: const Text('Tiếp tục'),
-                            ),
-                          ],
+          child: CandyFrame(
+            padding: 6,
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: Stack(
+                children: [
+                  GridView.count(
+                    crossAxisCount: size.cols,
+                    mainAxisSpacing: gap,
+                    crossAxisSpacing: gap,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (var i = 0; i < _game.cards.length; i++)
+                        MemoryCardView(
+                          key: ValueKey('memory-card-$_gen-$i'),
+                          set: _game.set,
+                          symbol: _game.cards[i].symbol,
+                          visible:
+                              !_paused &&
+                              (_game.cards[i].faceUp ||
+                                  _game.cards[i].matched ||
+                                  _peeking),
+                          matched: _game.cards[i].matched,
+                          mismatch: _bad.contains(i),
+                          intro: _intro,
+                          index: i,
+                          total: _game.cards.length,
+                          onTap: () => _onTap(i),
+                        ),
+                    ],
+                  ),
+                  if (_paused)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: GlassStyle.of(context).inner,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.pause_circle,
+                                size: 56,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Đã tạm dừng',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              CandyButton(
+                                key: const ValueKey('memory-resume'),
+                                colors: Candy.green,
+                                onPressed: _togglePause,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.play_arrow),
+                                    SizedBox(width: 6),
+                                    Text('Tiếp tục'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -366,23 +419,52 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
 
   Widget _actions() {
     final canPeek = !_locked && !_game.waiting && _game.peeksLeft > 0;
+    final canPause = !_game.won;
     return Row(
       children: [
         Expanded(
-          child: FilledButton.tonalIcon(
+          child: CandyButton(
             key: const ValueKey('memory-peek'),
             onPressed: canPeek ? _peek : null,
-            icon: const Icon(Icons.visibility_outlined),
-            label: Text('Nhìn trước (${_game.peeksLeft})'),
+            colors: Candy.purple,
+            dim: !canPeek,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.visibility_outlined),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Nhìn trước (${_game.peeksLeft})',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: OutlinedButton.icon(
+          child: CandyButton(
             key: const ValueKey('memory-pause'),
-            onPressed: _game.won ? null : _togglePause,
-            icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
-            label: Text(_paused ? 'Tiếp tục' : 'Tạm dừng'),
+            onPressed: canPause ? _togglePause : null,
+            colors: Candy.orange,
+            dim: !canPause,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_paused ? Icons.play_arrow : Icons.pause),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    _paused ? 'Tiếp tục' : 'Tạm dừng',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -393,11 +475,9 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
     return Align(
       alignment: const Alignment(0, 0.82),
       child: PopIn(
-        child: Card(
-          color: s.surfaceContainerHigh,
-          elevation: 0,
+        child: CandyFrame(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -416,21 +496,25 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
                 if (_newRecord)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Chip(
-                      avatar: const Icon(Icons.emoji_events, size: 18),
-                      label: Text('Kỷ lục mới! ${_game.moves} lượt'),
+                    child: CandyRibbon(
+                      text: 'Kỷ lục mới! ${_game.moves} lượt',
+                      colors: Candy.orange,
                     ),
                   ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Wrap(
-                  spacing: 8,
+                  spacing: 10,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
                   children: [
-                    FilledButton(
+                    CandyButton(
                       key: const ValueKey('memory-again'),
+                      colors: Candy.green,
                       onPressed: _restart,
                       child: Text(_isDaily ? 'Chơi lại' : 'Ván mới'),
                     ),
-                    OutlinedButton(
+                    CandyButton(
+                      colors: Candy.red,
                       onPressed: () => context.go(_store.homeRoute),
                       child: const Text('Thoát'),
                     ),
@@ -446,34 +530,18 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat(this.icon, this.value, this.label, {this.highlight = false});
+  const _Stat(this.icon, this.value, this.label, this.colors);
 
   final IconData icon;
   final String value;
   final String label;
-  final bool highlight;
+  final List<Color> colors;
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
-    final color = highlight ? Colors.deepOrange : s.onSurfaceVariant;
-    return Expanded(
-      child: Semantics(
-        label: label,
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: highlight ? color : null,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return Semantics(
+      label: label,
+      child: GlassStat(icon: icon, text: value, colors: colors),
     );
   }
 }
@@ -536,11 +604,19 @@ class _SetupSheetState extends State<_SetupSheet> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: CandyButton(
                 key: const ValueKey('memory-start'),
+                colors: Candy.green,
                 onPressed: () => Navigator.pop(context, (_size, _set)),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Bắt đầu'),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.play_arrow),
+                    SizedBox(width: 6),
+                    Text('Bắt đầu'),
+                  ],
+                ),
               ),
             ),
           ],

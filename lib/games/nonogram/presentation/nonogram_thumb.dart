@@ -23,7 +23,6 @@ class NonogramThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = Theme.of(context).colorScheme;
     return CustomPaint(
       painter: _ThumbPainter(
         solution: solution,
@@ -31,9 +30,9 @@ class NonogramThumb extends StatelessWidget {
         colored: colored,
         top: top,
         bottom: bottom,
-        empty: s.surfaceContainerHighest,
-        fill: s.primary,
-        line: s.outlineVariant,
+        empty: const Color(0xFF2B4F68),
+        fill: const Color(0xFFB07CFF),
+        line: const Color(0xFF173B52),
       ),
       size: Size.infinite,
     );

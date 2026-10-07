@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/kakuro/domain/kakuro_engine.dart';
 
@@ -48,7 +53,7 @@ class KakuroScreen extends ConsumerStatefulWidget {
 }
 
 class _KakuroScreenState extends ConsumerState<KakuroScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final GameStore _store = GameStore(
     ref.read(progressStoreProvider),
     daily: widget.daily,
@@ -63,12 +68,21 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   bool _pencil = false;
   bool _paused = false;
   bool _newBest = false;
+  int? _points;
   (int, int)? _sel;
   final List<_Move> _undo = [];
   Set<(int, int)> _err = {};
   Set<int> _done = {};
   final Set<int> _flash = {};
   Timer? _timer;
+  // Thong bao hoan thanh doan: song burst + toast.
+  late final AnimationController _burst = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
+  List<(int, int, int)> _burstCells = const []; // (r, c, thu tu trong doan)
+  int _toastId = 0;
+  String _toastText = '';
   final _shake = GlobalKey<ShakeState>();
   final _focus = FocusNode();
 
@@ -91,6 +105,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _burst.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -161,6 +176,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     _hints = lv.hints;
     _won = false;
     _newBest = false;
+    _points = null;
     _undo.clear();
     _flash.clear();
     _sel = _firstWhite();
@@ -238,6 +254,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       GameFx.success();
       Sfx.play(SfxKind.match);
       setState(() => _flash.addAll(fresh));
+      _announceRuns(fresh);
       Future.delayed(const Duration(milliseconds: 650), () {
         if (mounted) setState(() => _flash.removeAll(fresh));
       });
@@ -255,6 +272,24 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     }
   }
 
+  /// Burst + toast khi mot doan vua chuyen sang dung (khong goi khi tai/hoan tac).
+  void _announceRuns(Set<int> fresh) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    final ids = fresh.toList()..sort();
+    setState(() {
+      _toastId++;
+      _toastText = ids.length == 1
+          ? 'Đoạn ${_p.runs[ids.first].sum} xong!'
+          : '${ids.length} đoạn xong!';
+      _burstCells = [
+        for (final i in ids)
+          for (var k = 0; k < _p.runs[i].cells.length; k++)
+            (_p.runs[i].cells[k].$1, _p.runs[i].cells[k].$2, k),
+      ];
+    });
+    _burst.forward(from: 0);
+  }
+
   void _win() {
     final prev = _store.isDaily ? null : _store.stats(_bestKey).best;
     setState(() {
@@ -264,6 +299,15 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     _store
       ..recordWin(_id, score: _secs, lowerIsBetter: true)
       ..clearState(_id);
+    final pts = Scoring.points(
+      base: 1000,
+      seconds: _secs,
+      parSeconds: const [420, 720, 1080][_level],
+      mult: const [1.0, 1.5, 2.0][_level],
+      hints: (_lv.hints - _hints).clamp(0, _lv.hints),
+    );
+    setState(() => _points = pts);
+    _store.awardPoints(_id, pts);
     if (!_store.isDaily) {
       _store.recordScore(_bestKey, _secs, lowerIsBetter: true);
     }
@@ -372,10 +416,13 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     final scheme = Theme.of(context).colorScheme;
     final best = _store.isDaily ? null : _store.stats(_bestKey).best;
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
         title: Text(_store.isDaily ? 'Kakuro - Thử thách ngày' : 'Kakuro'),
         actions: [
+          const ScoreChip(),
           const HelpAction(gameId: 'kakuro'),
           if (_store.isDaily)
             IconButton(
@@ -420,12 +467,42 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
                         const SizedBox(height: 10),
                         AspectRatio(
                           aspectRatio: 1,
-                          child: Shake(key: _shake, child: _board(scheme)),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Positioned.fill(
+                                child: Shake(
+                                  key: _shake,
+                                  child: _board(scheme),
+                                ),
+                              ),
+                              if (_toastText.isNotEmpty)
+                                Positioned(
+                                  top: -14,
+                                  left: 0,
+                                  right: 0,
+                                  child: IgnorePointer(
+                                    child: _RunToast(
+                                      key: ValueKey(_toastId),
+                                      text: _toastText,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 14),
-                        _toolRow(scheme),
-                        const SizedBox(height: 10),
-                        _numPad(scheme),
+                        GlassPanel(
+                          padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _toolRow(scheme),
+                              const SizedBox(height: 10),
+                              _numPad(scheme),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -439,6 +516,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
                 subtitle: _newBest
                     ? 'Kỷ lục mới ${_fmt(_secs)}'
                     : 'Thời gian ${_fmt(_secs)}',
+                points: _points,
                 onAgain: () => _newGame(_store.isDaily ? _dailyLevel : _level),
               ),
             ),
@@ -449,34 +527,29 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   Widget _statusRow(ColorScheme scheme, int? best) {
-    final t = Theme.of(context).textTheme;
-    return Row(
+    Widget fit(Widget w) => Flexible(
+      child: FittedBox(fit: BoxFit.scaleDown, child: w),
+    );
+    return GlassBar(
       children: [
-        Chip(
-          avatar: Icon(
-            _store.isDaily ? Icons.today_outlined : Icons.signal_cellular_alt,
-            size: 18,
-          ),
-          label: Text(
-            _store.isDaily ? 'Hôm nay' : '${_lv.name} ${_lv.n}x${_lv.n}',
-          ),
-          visualDensity: VisualDensity.compact,
-        ),
-        const Spacer(),
-        if (best != null) ...[
-          Icon(Icons.emoji_events_outlined, size: 18, color: scheme.tertiary),
-          const SizedBox(width: 4),
-          Text(_fmt(best), style: t.bodyMedium),
-          const SizedBox(width: 14),
-        ],
-        Icon(Icons.timer_outlined, size: 18, color: scheme.primary),
-        const SizedBox(width: 4),
-        Text(
-          _fmt(_secs),
-          style: t.titleMedium?.copyWith(
-            fontFeatures: const [FontFeature.tabularFigures()],
+        fit(
+          GlassStat(
+            icon: _store.isDaily
+                ? Icons.today_outlined
+                : Icons.signal_cellular_alt,
+            colors: Candy.purple,
+            text: _store.isDaily ? 'Hôm nay' : '${_lv.name} ${_lv.n}x${_lv.n}',
           ),
         ),
+        if (best != null)
+          fit(
+            GlassStat(
+              icon: Icons.emoji_events_outlined,
+              colors: Candy.orange,
+              text: _fmt(best),
+            ),
+          ),
+        fit(GlassStat(icon: Icons.timer_outlined, text: _fmt(_secs))),
       ],
     );
   }
@@ -486,57 +559,57 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     final sel = _sel;
     final selA = sel == null ? -1 : _p.acrossRunOf[sel.$1][sel.$2];
     final selD = sel == null ? -1 : _p.downRunOf[sel.$1][sel.$2];
-    final green = ColorScheme.fromSeed(
-      seedColor: Colors.green,
-      brightness: Theme.of(context).brightness,
-    );
     final anim = !MediaQuery.of(context).disableAnimations;
     return LayoutBuilder(
       builder: (context, box) {
         final cell = box.maxWidth / size;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.outlineVariant,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(1.5),
-            child: Column(
-              children: [
-                for (var r = 0; r < size; r++)
-                  Expanded(
-                    child: Row(
-                      children: [
-                        for (var c = 0; c < size; c++)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(0.75),
-                              child: _p.isWhite(r, c)
-                                  ? _whiteCell(
-                                      r,
-                                      c,
-                                      cell,
-                                      scheme,
-                                      green,
-                                      selA,
-                                      selD,
-                                      anim,
-                                    )
-                                  : _clueCell(r, c, scheme, selA, selD),
+        return Stack(
+          children: [
+            CandyFrame(
+              padding: 5,
+              child: Column(
+                children: [
+                  for (var r = 0; r < size; r++)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          for (var c = 0; c < size; c++)
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(0.9),
+                                child: _p.isWhite(r, c)
+                                    ? _whiteCell(r, c, cell, selA, selD, anim)
+                                    : _clueCell(r, c, selA, selD),
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _burst,
+                  builder: (_, _) => CustomPaint(
+                    painter: _RunBurstPainter(
+                      _burstCells,
+                      _burst.value,
+                      size,
+                      5,
                     ),
                   ),
-              ],
+                ),
+              ),
             ),
-          ),
+          ],
         );
       },
     );
   }
 
-  Widget _clueCell(int r, int c, ColorScheme scheme, int selA, int selD) {
+  Widget _clueCell(int r, int c, int selA, int selD) {
     final a = _p.across[r][c];
     final d = _p.down[r][c];
     final ai = a == 0 ? -1 : _p.acrossRunOf[r][c + 1];
@@ -547,9 +620,6 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
         painter: _CluePainter(
           across: a,
           down: d,
-          bg: scheme.inverseSurface,
-          fg: scheme.onInverseSurface,
-          hi: scheme.inversePrimary,
           acrossActive: ai != -1 && ai == selA,
           downActive: di != -1 && di == selD,
           acrossDone: _done.contains(ai),
@@ -560,16 +630,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     );
   }
 
-  Widget _whiteCell(
-    int r,
-    int c,
-    double cell,
-    ColorScheme scheme,
-    ColorScheme green,
-    int selA,
-    int selD,
-    bool anim,
-  ) {
+  Widget _whiteCell(int r, int c, double cell, int selA, int selD, bool anim) {
     final v = _v[r][c];
     final ai = _p.acrossRunOf[r][c];
     final di = _p.downRunOf[r][c];
@@ -578,22 +639,31 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     final flash = _flash.contains(ai) || _flash.contains(di);
     final done = _done.contains(ai) || _done.contains(di);
     final peer = ai == selA || di == selD;
-    final bg = err
-        ? scheme.errorContainer
-        : isSel
-        ? scheme.primaryContainer
-        : flash
-        ? green.primary.withValues(alpha: 0.55)
-        : done
-        ? green.primaryContainer
-        : peer
-        ? scheme.surfaceContainerHighest
-        : scheme.surface;
-    final fg = err
-        ? scheme.onErrorContainer
-        : done && !isSel
-        ? green.onPrimaryContainer
-        : scheme.onSurface;
+    final List<Color> colors;
+    final Color fg;
+    if (err) {
+      colors = Candy.red;
+      fg = Colors.white;
+    } else if (isSel) {
+      colors = Candy.blue;
+      fg = Colors.white;
+    } else if (flash) {
+      colors = Candy.green;
+      fg = Colors.white;
+    } else if (done) {
+      colors = const [Color(0xFFE6F9D2), Color(0xFFB4E592)];
+      fg = const Color(0xFF1F5A1A);
+    } else if (peer) {
+      colors = const [Color(0xFFEAF5FF), Color(0xFFC3DEF5)];
+      fg = const Color(0xFF16345C);
+    } else {
+      colors = const [Color(0xFFFFFFFF), Color(0xFFE9EEF6)];
+      fg = const Color(0xFF16345C);
+    }
+    // So nguoi choi dien: xanh duong (tru khi dang chon / loi / vua xong).
+    final digit = v != 0 && !err && !isSel && !flash && !done
+        ? const Color(0xFF1E6FE0)
+        : fg;
     Widget content;
     if (v != 0) {
       content = PopIn(
@@ -603,8 +673,8 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
           '$v',
           style: TextStyle(
             fontSize: cell * 0.52,
-            fontWeight: FontWeight.w600,
-            color: fg,
+            fontWeight: FontWeight.w800,
+            color: digit,
             height: 1,
           ),
         ),
@@ -612,7 +682,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     } else if (_notes[r][c] != 0) {
       content = _NotesGrid(
         mask: _notes[r][c],
-        color: scheme.onSurfaceVariant,
+        color: isSel ? Colors.white : const Color(0xFF5B6B85),
         fontSize: cell * 0.2,
       );
     } else {
@@ -622,12 +692,28 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       duration: anim ? const Duration(milliseconds: 220) : Duration.zero,
       curve: Curves.easeOut,
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(3),
-        border: isSel ? Border.all(color: scheme.primary, width: 2) : null,
+        borderRadius: BorderRadius.circular(5),
+        border: isSel
+            ? Border.all(color: const Color(0xFFBFE6FF), width: 2)
+            : null,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: colors,
+        ),
+        boxShadow: [
+          const BoxShadow(color: Color(0x66000000), offset: Offset(0, 1.5)),
+          if (isSel) const BoxShadow(color: Color(0x995CC8FF), blurRadius: 8),
+          if (flash) const BoxShadow(color: Color(0xAAA5E05B), blurRadius: 8),
+        ],
       ),
-      alignment: Alignment.center,
-      child: content,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const CandyGloss(radius: 4, opacity: 0.5),
+          Center(child: content),
+        ],
+      ),
     );
     if (isSel && anim) {
       box = TweenAnimationBuilder<double>(
@@ -643,11 +729,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       button: true,
       selected: isSel,
       label: 'Ô hàng $r cột $c${v == 0 ? ', trống' : ', $v'}',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _select(r, c),
-        child: box,
-      ),
+      child: _PressScale(onTap: () => _select(r, c), child: box),
     );
   }
 
@@ -669,6 +751,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
           icon: _pencil ? Icons.edit : Icons.edit_outlined,
           label: _pencil ? 'Ghi chú: bật' : 'Ghi chú',
           active: _pencil,
+          toggle: true,
           onTap: () {
             GameFx.tap();
             setState(() => _pencil = !_pencil);
@@ -709,46 +792,57 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
                 child: AnimatedOpacity(
                   opacity: used.contains(d) ? 0.4 : 1,
                   duration: const Duration(milliseconds: 150),
-                  child: _pencil
-                      ? OutlinedButton(
-                          key: ValueKey('kakuro-num-$d'),
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: _won ? null : () => _put(d),
-                          child: Text(
-                            '$d',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        )
-                      : FilledButton.tonal(
-                          key: ValueKey('kakuro-num-$d'),
-                          style: FilledButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed: _won ? null : () => _put(d),
-                          child: Text(
-                            '$d',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                  child: CandyButton(
+                    key: ValueKey('kakuro-num-$d'),
+                    radius: 10,
+                    padding: EdgeInsets.zero,
+                    colors: _pencil ? Candy.orange : Candy.blue,
+                    dim: _won,
+                    onPressed: _won ? null : () => _put(d),
+                    child: Text(
+                      '$d',
+                      style: TextStyle(
+                        fontSize: _pencil ? 18 : 22,
+                        fontStyle: _pencil ? FontStyle.italic : null,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Nhan xuong thi thu nho nhe (phan hoi cham), nha ra thi bung lai.
+class _PressScale extends StatefulWidget {
+  const _PressScale({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _down = true),
+      onTapUp: (_) => setState(() => _down = false),
+      onTapCancel: () => setState(() => _down = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _down ? 0.88 : 1,
+        duration: const Duration(milliseconds: 80),
+        child: widget.child,
+      ),
     );
   }
 }
@@ -759,6 +853,7 @@ class _Tool extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.active = false,
+    this.toggle = false,
     this.badge,
   });
 
@@ -766,25 +861,25 @@ class _Tool extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final bool active;
+
+  /// Nut bat/tat: sang khi [active], mo khi tat.
+  final bool toggle;
   final int? badge;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget btn = IconButton.filledTonal(
-      isSelected: active,
+    Widget btn = CandyButton(
       onPressed: onTap,
-      icon: Icon(icon),
-      style: IconButton.styleFrom(
-        backgroundColor: active ? scheme.primary : null,
-        foregroundColor: active ? scheme.onPrimary : null,
-      ),
+      colors: toggle ? Candy.orange : Candy.blue,
+      dim: onTap == null || (toggle && !active),
+      padding: const EdgeInsets.all(10),
+      child: Icon(icon),
     );
     if (badge != null) {
       btn = Badge(
         label: Text('$badge'),
-        backgroundColor: badge! > 0 ? scheme.primary : scheme.outline,
-        textColor: scheme.onPrimary,
+        backgroundColor: badge! > 0 ? Candy.red.last : const Color(0xFF5B6B85),
+        textColor: Colors.white,
         child: btn,
       );
     }
@@ -794,8 +889,21 @@ class _Tool extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           btn,
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+            decoration: BoxDecoration(
+              color: GlassStyle.of(context).pill,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: GlassStyle.of(context).pillText,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -849,9 +957,6 @@ class _CluePainter extends CustomPainter {
   _CluePainter({
     required this.across,
     required this.down,
-    required this.bg,
-    required this.fg,
-    required this.hi,
     required this.acrossActive,
     required this.downActive,
     required this.acrossDone,
@@ -860,9 +965,6 @@ class _CluePainter extends CustomPainter {
 
   final int across;
   final int down;
-  final Color bg;
-  final Color fg;
-  final Color hi;
   final bool acrossActive;
   final bool downActive;
   final bool acrossDone;
@@ -871,17 +973,41 @@ class _CluePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(5));
+    final empty = across == 0 && down == 0;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(3)),
+      rr,
       Paint()
-        ..color = across == 0 && down == 0 ? bg.withValues(alpha: 0.8) : bg,
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: empty
+              ? const [Color(0xFF24344F), Color(0xFF16233A)]
+              : const [Color(0xFF4A6FA8), Color(0xFF223A63)],
+        ).createShader(rect),
     );
-    if (across == 0 && down == 0) return;
+    if (empty) return;
+    // Vet bong o nua tren.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(1.5, 1, size.width - 3, size.height * 0.42),
+        const Radius.circular(4),
+      ),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.22),
+            Colors.white.withValues(alpha: 0.02),
+          ],
+        ).createShader(rect),
+    );
     canvas.drawLine(
       Offset(size.width * 0.06, size.height * 0.06),
       Offset(size.width * 0.94, size.height * 0.94),
       Paint()
-        ..color = fg.withValues(alpha: 0.35)
+        ..color = Colors.white.withValues(alpha: 0.45)
         ..strokeWidth = 1,
     );
     final fs = size.width * 0.3;
@@ -897,12 +1023,12 @@ class _CluePainter extends CustomPainter {
           style: TextStyle(
             fontSize: fs,
             height: 1,
-            fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+            fontWeight: active ? FontWeight.w900 : FontWeight.w700,
             color: active
-                ? hi
+                ? const Color(0xFFFFE066)
                 : done
-                ? fg.withValues(alpha: 0.45)
-                : fg,
+                ? Candy.green.first
+                : Colors.white,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -932,11 +1058,129 @@ class _CluePainter extends CustomPainter {
   bool shouldRepaint(_CluePainter o) =>
       o.across != across ||
       o.down != down ||
-      o.bg != bg ||
-      o.fg != fg ||
-      o.hi != hi ||
       o.acrossActive != acrossActive ||
       o.downActive != downActive ||
       o.acrossDone != acrossDone ||
       o.downDone != downDone;
+}
+
+/// Song burst: moi o cua doan vua xong toa vong xanh + sao, lan theo thu tu.
+class _RunBurstPainter extends CustomPainter {
+  const _RunBurstPainter(this.cells, this.t, this.n, this.inset);
+
+  final List<(int, int, int)> cells;
+  final double t;
+  final int n;
+  final double inset;
+
+  static const _colors = [
+    Color(0xFFFFEB3B),
+    Color(0xFF69F0AE),
+    Color(0xFF40C4FF),
+    Color(0xFFFF80AB),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0 || t >= 1 || cells.isEmpty) return;
+    final cell = (size.width - 2 * inset) / n;
+    for (final (r, c, idx) in cells) {
+      final lt = ((t - idx * 0.07) / 0.55).clamp(0.0, 1.0);
+      if (lt <= 0 || lt >= 1) continue;
+      final ctr = Offset(inset + (c + .5) * cell, inset + (r + .5) * cell);
+      final e = Curves.easeOutCubic.transform(lt);
+      final fade = 1 - lt;
+      canvas.drawCircle(
+        ctr,
+        cell * (.35 + .5 * e),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4 * fade + 1
+          ..color = const Color(0xFF2EC27E).withValues(alpha: fade),
+      );
+      for (var i = 0; i < 8; i++) {
+        final a = i * pi / 4 + .3;
+        final p = ctr + Offset(cos(a), sin(a)) * (cell * (.3 + .6 * e));
+        final paint = Paint()
+          ..color = _colors[i % _colors.length].withValues(alpha: fade);
+        final star = Path();
+        final k = cell * .08 * (1 - lt * .5);
+        for (var j = 0; j < 8; j++) {
+          final rad = j.isEven ? k * 1.6 : k * .6;
+          final b = -pi / 2 + j * pi / 4;
+          final pt = p + Offset(cos(b), sin(b)) * rad;
+          j == 0 ? star.moveTo(pt.dx, pt.dy) : star.lineTo(pt.dx, pt.dy);
+        }
+        canvas.drawPath(star..close(), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RunBurstPainter o) => o.t != t || o.cells != cells;
+}
+
+/// Bong bong xanh noi len tren ban co khi hoan thanh doan.
+class _RunToast extends StatelessWidget {
+  const _RunToast({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 1400),
+      builder: (_, k, child) {
+        final up = Curves.easeOutCubic.transform((k * 2).clamp(0.0, 1.0));
+        final opacity = k < .7 ? 1.0 : (1 - (k - .7) / .3).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(0, 10 - 26 * up),
+            child: Transform.scale(
+              scale: .6 + .4 * Curves.easeOutBack.transform(up),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white, width: 2),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: Candy.green,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x66000000),
+                offset: Offset(0, 4),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

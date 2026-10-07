@@ -6,13 +6,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_game.dart';
 import 'package:puzzle_hub/games/sudoku/presentation/sudoku_board.dart';
+import 'package:puzzle_hub/games/sudoku/presentation/sudoku_burst.dart';
 import 'package:puzzle_hub/games/sudoku/presentation/sudoku_controls.dart';
 
 const _id = 'sudoku';
@@ -56,12 +61,21 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
 
   late final AnimationController _wave = AnimationController(vsync: this);
   Map<int, double> _waveDelay = const {};
+  late final AnimationController _burst = AnimationController(vsync: this);
+  Map<int, double> _burstDelay = const {};
+  int _toastId = 0;
+  List<String> _toastMessages = const [];
   final _shakeKey = GlobalKey<ShakeState>();
   final _focus = FocusNode(debugLabel: 'sudoku');
 
   bool _showWin = false;
   bool _showResult = false;
   bool _newRecord = false;
+  int? _points;
+
+  /// Diem thuong cua van nay (hang/cot/khoi xong) va cac don vi da thuong.
+  int _bonusPoints = 0;
+  final Set<String> _awardedUnits = {};
   int? _best;
   Timer? _resultTimer;
 
@@ -94,6 +108,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     _timer?.cancel();
     _resultTimer?.cancel();
     _wave.dispose();
+    _burst.dispose();
     _clock.dispose();
     _focus.dispose();
     super.dispose();
@@ -156,9 +171,15 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     _showWin = false;
     _showResult = false;
     _newRecord = false;
+    _points = null;
+    _bonusPoints = 0;
+    _awardedUnits.clear();
     _waveDelay = const {};
     _resultTimer?.cancel();
     _wave.value = 0;
+    _burst.value = 0;
+    _burstDelay = const {};
+    _toastMessages = const [];
   }
 
   void _restartSame() {
@@ -211,6 +232,12 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     final g = _game;
     final i = _sel;
     if (g == null || i == null || _paused || g.isOver) return;
+    if (_lockedCell(i)) {
+      _lockedFeedback();
+      return;
+    }
+    // Cac don vi da day tu truoc (van restore/de bai) khong duoc thuong lai.
+    _awardedUnits.addAll(fullUnitKeys(g.values));
     if (_notes) {
       if (g.toggleNote(i, d)) {
         setState(_clearHint);
@@ -240,13 +267,16 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       Sfx.play(SfxKind.place);
       GameFx.tap();
       if (g.isWon) {
+        _awardBonus(detectCompletion(g.values, i).takeNew(_awardedUnits));
         _onWin(i);
         return;
       }
-      if (r.completed.isNotEmpty) {
+      final done = detectCompletion(g.values, i);
+      if (r.completed.isNotEmpty || !done.isEmpty) {
         Sfx.play(SfxKind.success);
         GameFx.success();
-        _runUnitWave(i, r.completed);
+        if (r.completed.isNotEmpty) _runUnitWave(i, r.completed);
+        _announceCompletion(i, done);
       }
     }
     _save();
@@ -256,6 +286,10 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     final g = _game;
     final i = _sel;
     if (g == null || i == null || _paused) return;
+    if (_lockedCell(i)) {
+      _lockedFeedback();
+      return;
+    }
     if (g.erase(i)) {
       setState(_clearHint);
       Sfx.play(SfxKind.erase);
@@ -267,8 +301,14 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   void _undo() {
     final g = _game;
     if (g == null || _paused) return;
+    final locked = lockedCells(g.values, g.isWrong);
     final i = g.undo();
     if (i == null) return;
+    if (locked.contains(i)) {
+      g.redo(); // o da khoa: giu nguyen, khong hoan tac
+      _lockedFeedback();
+      return;
+    }
     setState(() {
       _sel = i;
       _clearHint();
@@ -346,6 +386,54 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     _playWave(d, const Duration(milliseconds: 750));
   }
 
+  /// Bung sang + thong bao khi vua xong hang/cot/khoi hoac du 9 so.
+  void _announceCompletion(int origin, SudokuCompletion done) {
+    final fresh = done.takeNew(_awardedUnits);
+    if (fresh.isEmpty) return;
+    final pts = _awardBonus(fresh);
+    if (_reduce) return;
+    final cells = fresh.cells(_game!.values);
+    setState(() {
+      _burstDelay = burstDelays(cells, origin);
+      _toastId++;
+      _toastMessages = [
+        ...fresh.messages,
+        if (fresh.unitCount >= 2) 'Combo ×${fresh.combo == 2 ? '2' : '1,5'}!',
+        if (pts > 0) '+${Scoring.format(pts)} điểm',
+      ];
+    });
+    _burst
+      ..duration = const Duration(milliseconds: 900)
+      ..forward(from: 0);
+  }
+
+  /// Cong diem thuong cho cac don vi MOI xong (da qua takeNew).
+  int _awardBonus(SudokuCompletion fresh) {
+    final pts = fresh.points(_levelMult(_game!.level));
+    if (pts > 0) {
+      _bonusPoints += pts;
+      _store.awardPoints(_id, pts);
+    }
+    return pts;
+  }
+
+  /// O thuoc hang/cot/khoi da xong dung thi bi khoa, khong sua duoc nua.
+  bool _lockedCell(int i) {
+    final g = _game;
+    return g != null && lockedCells(g.values, g.isWrong).contains(i);
+  }
+
+  void _lockedFeedback() {
+    Sfx.play(SfxKind.error);
+    GameFx.error();
+    _shakeKey.currentState?.shake();
+    if (_reduce) return;
+    setState(() {
+      _toastId++;
+      _toastMessages = const ['Ô đã khoá, không sửa được nữa'];
+    });
+  }
+
   void _runBoardWave(int origin) {
     if (_reduce) return;
     final d = <int, double>{
@@ -374,6 +462,16 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     _store
       ..recordWin(_id, score: t, lowerIsBetter: true)
       ..clearState(_id);
+    final pts = Scoring.points(
+      base: 1000,
+      seconds: t,
+      parSeconds: _parSeconds(g.level),
+      mult: _levelMult(g.level),
+      mistakes: g.mistakes,
+      hints: g.hintsUsed,
+    );
+    _points = pts + _bonusPoints;
+    _store.awardPoints(_id, pts);
     Sfx.play(SfxKind.win);
     GameFx.success();
     setState(() {
@@ -386,6 +484,20 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       if (mounted) setState(() => _showResult = true);
     });
   }
+
+  static double _levelMult(SudokuLevel l) => switch (l) {
+    SudokuLevel.easy => 1.0,
+    SudokuLevel.medium => 1.5,
+    SudokuLevel.hard => 2.0,
+    SudokuLevel.expert => 3.0,
+  };
+
+  static int _parSeconds(SudokuLevel l) => switch (l) {
+    SudokuLevel.easy => 300,
+    SudokuLevel.medium => 600,
+    SudokuLevel.hard => 900,
+    SudokuLevel.expert => 1500,
+  };
 
   void _onLose() {
     _store.clearState(_id);
@@ -493,18 +605,21 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   Future<void> _openLevelSheet() async {
     final picked = await showModalBottomSheet<SudokuLevel>(
       context: context,
-      showDragHandle: true,
+      backgroundColor: Candy.bgTop,
       isScrollControlled: true,
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 'Ván mới',
-                style: Theme.of(ctx).textTheme.titleLarge,
+                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -525,56 +640,62 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   Widget build(BuildContext context) {
     final g = _game;
     final reduce = _reduce;
-    return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-        title: Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
-        actions: [
-          const HelpAction(gameId: 'sudoku'),
-          if (g != null && !_daily)
-            IconButton(
-              tooltip: 'Ván mới',
-              icon: const Icon(Icons.add_box_outlined),
-              onPressed: _openLevelSheet,
-            ),
-          PopupMenuButton<String>(
-            tooltip: 'Tuỳ chọn',
-            onSelected: (v) {
-              if (v == 'limit') _setLimit(!_limitCfg);
-              if (v == 'restart') _restartSame();
-            },
-            itemBuilder: (_) => [
-              CheckedPopupMenuItem(
-                value: 'limit',
-                checked: _limitCfg,
-                child: const Text('Giới hạn 3 lỗi'),
+    return CandyBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
+          title: Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
+          actions: [
+            const ScoreChip(),
+            const HelpAction(gameId: 'sudoku'),
+            if (g != null && !_daily)
+              IconButton(
+                tooltip: 'Ván mới',
+                icon: const Icon(Icons.add_box_outlined),
+                onPressed: _openLevelSheet,
               ),
-              if (g != null)
-                const PopupMenuItem(
-                  value: 'restart',
-                  child: ListTile(
-                    leading: Icon(Icons.replay),
-                    title: Text('Chơi lại đề này'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+            PopupMenuButton<String>(
+              tooltip: 'Tuỳ chọn',
+              onSelected: (v) {
+                if (v == 'limit') _setLimit(!_limitCfg);
+                if (v == 'restart') _restartSame();
+              },
+              itemBuilder: (_) => [
+                CheckedPopupMenuItem(
+                  value: 'limit',
+                  checked: _limitCfg,
+                  child: const Text('Giới hạn 3 lỗi'),
                 ),
-            ],
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Focus(
-          focusNode: _focus,
-          autofocus: true,
-          onKeyEvent: _onKey,
-          child: AnimatedSwitcher(
-            duration: reduce
-                ? Duration.zero
-                : const Duration(milliseconds: 350),
-            switchInCurve: Curves.easeOut,
-            child: KeyedSubtree(
-              key: ValueKey(_gen),
-              child: g == null ? _pickerView() : _gameView(g),
+                if (g != null)
+                  const PopupMenuItem(
+                    value: 'restart',
+                    child: ListTile(
+                      leading: Icon(Icons.replay),
+                      title: Text('Chơi lại đề này'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Focus(
+            focusNode: _focus,
+            autofocus: true,
+            onKeyEvent: _onKey,
+            child: AnimatedSwitcher(
+              duration: reduce
+                  ? Duration.zero
+                  : const Duration(milliseconds: 350),
+              switchInCurve: Curves.easeOut,
+              child: KeyedSubtree(
+                key: ValueKey(_gen),
+                child: g == null ? _pickerView() : _gameView(g),
+              ),
             ),
           ),
         ),
@@ -583,7 +704,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   }
 
   Widget _pickerView() {
-    final t = Theme.of(context).textTheme;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -592,18 +712,20 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(
-                Icons.grid_on,
-                size: 56,
-                color: Theme.of(context).colorScheme.primary,
+              const Center(
+                child: CandyButton(
+                  onPressed: null,
+                  colors: Candy.purple,
+                  circle: true,
+                  padding: EdgeInsets.all(16),
+                  child: Icon(Icons.grid_on, size: 40),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Chọn độ khó',
-                style: t.headlineSmall,
-                textAlign: TextAlign.center,
+              const SizedBox(height: 14),
+              const Center(
+                child: CandyRibbon(text: 'Chọn độ khó', colors: Candy.purple),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               SudokuLevelPicker(
                 stats: (l) => _store.stats(l.statsId),
                 onPick: _startNew,
@@ -631,25 +753,46 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                 children: [
                   _infoBar(g),
                   const SizedBox(height: 8),
-                  Shake(
-                    key: _shakeKey,
-                    child: AnimatedSwitcher(
-                      duration: reduce
-                          ? Duration.zero
-                          : const Duration(milliseconds: 250),
-                      child: _paused
-                          ? _pauseCover()
-                          : SudokuBoard(
-                              key: const ValueKey('board'),
-                              game: g,
-                              selected: _sel,
-                              onTap: _select,
-                              wave: _wave,
-                              waveDelay: _waveDelay,
-                              hintUnit: _hintUnit,
-                              hintCell: _hintCell,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Shake(
+                        key: _shakeKey,
+                        child: AnimatedSwitcher(
+                          duration: reduce
+                              ? Duration.zero
+                              : const Duration(milliseconds: 250),
+                          child: _paused
+                              ? _pauseCover()
+                              : SudokuBoard(
+                                  key: const ValueKey('board'),
+                                  game: g,
+                                  selected: _sel,
+                                  onTap: _select,
+                                  wave: _wave,
+                                  waveDelay: _waveDelay,
+                                  hintUnit: _hintUnit,
+                                  hintCell: _hintCell,
+                                  burst: _burst,
+                                  burstDelay: _burstDelay,
+                                ),
+                        ),
+                      ),
+                      if (_toastMessages.isNotEmpty && !_paused)
+                        Positioned(
+                          top: -14,
+                          left: 0,
+                          right: 0,
+                          child: IgnorePointer(
+                            child: Center(
+                              child: SudokuCompletionToast(
+                                key: ValueKey(_toastId),
+                                messages: _toastMessages,
+                              ),
                             ),
-                    ),
+                          ),
+                        ),
+                    ],
                   ),
                   AnimatedSize(
                     duration: reduce
@@ -659,25 +802,33 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                         ? const SizedBox(width: double.infinity, height: 8)
                         : _hintCard(s),
                   ),
-                  SudokuActions(
-                    canUndo: g.canUndo && !_paused,
-                    canRedo: g.canRedo && !_paused,
-                    notesOn: _notes,
-                    hintsLeft: g.hintsLeft,
-                    onUndo: _undo,
-                    onRedo: _redo,
-                    onErase: _erase,
-                    onNotes: () {
-                      setState(() => _notes = !_notes);
-                      Sfx.play(SfxKind.tap);
-                    },
-                    onHint: _hint,
-                  ),
-                  const SizedBox(height: 8),
-                  SudokuNumPad(
-                    remaining: remaining,
-                    notesOn: _notes,
-                    onDigit: _digit,
+                  GlassPanel(
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SudokuActions(
+                          canUndo: g.canUndo && !_paused,
+                          canRedo: g.canRedo && !_paused,
+                          notesOn: _notes,
+                          hintsLeft: g.hintsLeft,
+                          onUndo: _undo,
+                          onRedo: _redo,
+                          onErase: _erase,
+                          onNotes: () {
+                            setState(() => _notes = !_notes);
+                            Sfx.play(SfxKind.tap);
+                          },
+                          onHint: _hint,
+                        ),
+                        const SizedBox(height: 8),
+                        SudokuNumPad(
+                          remaining: remaining,
+                          notesOn: _notes,
+                          onDigit: _digit,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -689,6 +840,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
             show: _showWin && !_showResult,
             title: 'Hoàn thành!',
             subtitle: formatClock(g.elapsed),
+            points: _points,
           ),
         ),
         if (_showResult) ...[
@@ -712,86 +864,64 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   }
 
   Widget _infoBar(SudokuGame g) {
-    final s = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
-    return Row(
+    final bad = g.mistakes > 0;
+    return GlassBar(
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              Icon(levelIcon(g.level), size: 18, color: s.primary),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  _daily ? 'Hôm nay · ${g.level.label}' : g.level.label,
-                  style: t.labelLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _clock,
+              builder: (_, v, _) => GlassStat(
+                key: const ValueKey('sudoku-clock'),
+                icon: Icons.timer_outlined,
+                text: formatClock(v),
               ),
-            ],
+            ),
           ),
         ),
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: g.mistakes > 0 ? s.error : s.onSurfaceVariant,
-              ),
-              const SizedBox(width: 2),
-              Flexible(
-                child: TweenAnimationBuilder<double>(
-                  key: ValueKey('mis-${g.mistakes}'),
-                  tween: Tween(begin: g.mistakes > 0 ? 1.4 : 1, end: 1),
-                  duration: _reduce
-                      ? Duration.zero
-                      : const Duration(milliseconds: 300),
-                  builder: (_, v, child) =>
-                      Transform.scale(scale: v, child: child),
-                  child: Text(
-                    g.mistakeLimit
-                        ? 'Lỗi ${g.mistakes}/${SudokuGame.maxMistakes}'
-                        : 'Lỗi ${g.mistakes}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.labelLarge?.copyWith(
-                      color: g.mistakes > 0 ? s.error : null,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: CandyRibbon(
+              text: _daily ? 'Hôm nay · ${g.level.label}' : g.level.label,
+              colors: levelColors(g.level),
+            ),
           ),
         ),
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Flexible(
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _clock,
-                  builder: (_, v, _) => Text(
-                    formatClock(v),
-                    key: const ValueKey('sudoku-clock'),
-                    maxLines: 1,
-                    style: t.titleMedium?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey('mis-${g.mistakes}'),
+              tween: Tween(begin: bad ? 1.3 : 1, end: 1),
+              duration: _reduce
+                  ? Duration.zero
+                  : const Duration(milliseconds: 300),
+              curve: Curves.easeOutBack,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: GlassStat(
+                icon: Icons.close_rounded,
+                colors: Candy.red,
+                text: g.mistakeLimit
+                    ? 'Lỗi ${g.mistakes}/${SudokuGame.maxMistakes}'
+                    : 'Lỗi ${g.mistakes}',
               ),
-              IconButton(
-                tooltip: _paused ? 'Tiếp tục' : 'Tạm dừng',
-                visualDensity: VisualDensity.compact,
-                icon: Icon(
-                  _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                ),
-                onPressed: g.isOver ? null : _togglePause,
-              ),
-            ],
+            ),
+          ),
+        ),
+        CandyButton(
+          onPressed: g.isOver ? null : _togglePause,
+          colors: Candy.orange,
+          dim: _paused,
+          circle: true,
+          padding: const EdgeInsets.all(7),
+          child: Tooltip(
+            message: _paused ? 'Tiếp tục' : 'Tạm dừng',
+            child: Icon(
+              _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+              size: 26,
+            ),
           ),
         ),
       ],
@@ -799,29 +929,55 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   }
 
   Widget _pauseCover() {
-    final s = Theme.of(context).colorScheme;
-    return AspectRatio(
+    return CandyFrame(
       key: const ValueKey('pause'),
-      aspectRatio: 1,
-      child: Material(
-        color: s.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+      padding: 5,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: _togglePause,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.pause_circle_outline, size: 72, color: s.primary),
-              const SizedBox(height: 8),
-              Text('Tạm dừng', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _togglePause,
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Tiếp tục'),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: Candy.purple,
               ),
-            ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.pause_circle_outline,
+                  size: 72,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Tạm dừng',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                CandyButton(
+                  onPressed: _togglePause,
+                  colors: Candy.green,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_arrow_rounded),
+                      SizedBox(width: 6),
+                      Text('Tiếp tục'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -832,29 +988,45 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     padding: const EdgeInsets.symmetric(vertical: 8),
     child: PopIn(
       trigger: _hintText,
-      child: Material(
-        color: s.tertiaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-          child: Row(
-            children: [
-              Icon(Icons.lightbulb, color: s.onTertiaryContainer),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _hintText!,
-                  style: TextStyle(color: s.onTertiaryContainer),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Candy.gold, width: 2),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Candy.cream, Candy.creamDeep],
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x55000000),
+              offset: Offset(0, 3),
+              blurRadius: 3,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.lightbulb, color: Candy.orange.last),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _hintText!,
+                style: const TextStyle(
+                  color: Candy.brown,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              IconButton(
-                tooltip: 'Đóng',
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.close),
-                onPressed: () => setState(_clearHint),
-              ),
-            ],
-          ),
+            ),
+            IconButton(
+              tooltip: 'Đóng',
+              visualDensity: VisualDensity.compact,
+              color: Candy.brown,
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(_clearHint),
+            ),
+          ],
         ),
       ),
     ),
@@ -881,20 +1053,22 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       title: title,
       actions: [
         if (!won)
-          OutlinedButton(
+          CandyButton(
             onPressed: _continueWithoutLimit,
             child: const Text('Chơi tiếp, bỏ giới hạn'),
           ),
         if (!won)
-          OutlinedButton(
+          CandyButton(
             onPressed: _restartSame,
+            colors: Candy.orange,
             child: const Text('Chơi lại đề này'),
           ),
-        FilledButton(
+        CandyButton(
           key: const ValueKey('sudoku-result-next'),
           onPressed: _daily
               ? () => context.go(_store.homeRoute)
               : _backToPicker,
+          colors: Candy.green,
           child: Text(_daily ? 'Về thử thách' : 'Ván mới'),
         ),
       ],

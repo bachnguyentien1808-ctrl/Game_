@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
+import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/minesweeper/domain/minesweeper_engine.dart';
 
@@ -54,6 +57,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   int _hintsUsed = 0;
   bool _moved = false;
   bool _flagMode = false;
+  int? _points;
   bool _resumed = true;
   int _gen = 0;
   int? _hint;
@@ -133,6 +137,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     _hint = null;
     _seconds = 0;
     _hintsUsed = 0;
+    _points = null;
     _moved = false;
     if (_daily) {
       _level = MineLevel.medium;
@@ -279,7 +284,34 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     _store.recordLoss(_level.statsId);
   }
 
+  /// Diem: nhanh thi cao, muc kho nhan he so, moi lan goi y tru diem.
+  int _scoreForWin() {
+    final (mult, par) = switch (_level) {
+      MineLevel.easy => (1.0, 90),
+      MineLevel.medium => (2.0, 300),
+      MineLevel.hard => (3.5, 600),
+      MineLevel.custom => (
+        (_game.mines / 10).clamp(0.5, 3.0),
+        max(60, (_game.rows * _game.cols * 0.6).round()),
+      ),
+    };
+    return Scoring.points(
+      base: 1000,
+      seconds: _seconds,
+      parSeconds: par,
+      mult: mult,
+      hints: _hintsUsed,
+    );
+  }
+
+  Future<void> _awardPoints() async {
+    final pts = _scoreForWin();
+    setState(() => _points = pts);
+    await _store.awardPoints(_id, pts);
+  }
+
   void _recordWin() {
+    _awardPoints();
     final secs = _seconds;
     if (_daily) {
       _store.recordWin(_id, score: secs, lowerIsBetter: true);
@@ -371,6 +403,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                 : 'Dò mìn',
           ),
           actions: [
+            const ScoreChip(),
             const HelpAction(gameId: 'minesweeper'),
             IconButton(
               key: const Key('hint'),
@@ -394,17 +427,12 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               child: Column(
                 children: [
-                  Row(
+                  GlassBar(
                     children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: CandyPill(
-                            icon: Icons.flag,
-                            colors: Candy.red,
-                            text: '${_game.flagsLeft}',
-                          ),
-                        ),
+                      GlassStat(
+                        icon: Icons.flag,
+                        colors: Candy.red,
+                        text: '${_game.flagsLeft}',
                       ),
                       CandyButton(
                         key: const Key('smiley'),
@@ -417,15 +445,9 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                           child: Icon(face, size: 34),
                         ),
                       ),
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: CandyPill(
-                            icon: Icons.timer_outlined,
-                            colors: Candy.blue,
-                            text: '$_seconds s',
-                          ),
-                        ),
+                      GlassStat(
+                        icon: Icons.timer_outlined,
+                        text: '$_seconds s',
                       ),
                     ],
                   ),
@@ -439,41 +461,57 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                   const SizedBox(height: 8),
                   Expanded(child: _board(s)),
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CandyButton(
-                        onPressed: () => setState(() => _flagMode = false),
-                        dim: _flagMode,
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
+                  GlassPanel(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.touch_app),
-                            SizedBox(width: 6),
-                            Text('Mở ô'),
+                            CandyButton(
+                              onPressed: () =>
+                                  setState(() => _flagMode = false),
+                              dim: _flagMode,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.touch_app),
+                                  SizedBox(width: 6),
+                                  Text('Mở ô'),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            CandyButton(
+                              onPressed: () => setState(() => _flagMode = true),
+                              colors: Candy.orange,
+                              dim: !_flagMode,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.flag),
+                                  SizedBox(width: 6),
+                                  Text('Cắm cờ'),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      CandyButton(
-                        onPressed: () => setState(() => _flagMode = true),
-                        colors: Candy.orange,
-                        dim: !_flagMode,
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.flag),
-                            SizedBox(width: 6),
-                            Text('Cắm cờ'),
-                          ],
+                        const SizedBox(height: 6),
+                        Text(
+                          'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
+                          textAlign: TextAlign.center,
+                          style: t.bodySmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            shadows: const [
+                              Shadow(color: Color(0x99000000), blurRadius: 3),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
-                    style: t.bodySmall?.copyWith(color: Colors.white70),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -537,6 +575,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                 show: _game.won,
                 title: 'Thắng!',
                 subtitle: '$_seconds giây',
+                points: _points,
                 onAgain: () => setState(_newGame),
               ),
             ),
