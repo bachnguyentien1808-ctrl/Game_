@@ -13,7 +13,9 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/kakuro/domain/kakuro_engine.dart';
 
 const _id = 'kakuro';
@@ -419,34 +421,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-        title: Text(_store.isDaily ? 'Kakuro - Thử thách ngày' : 'Kakuro'),
-        actions: [
-          const ScoreChip(),
-          const HelpAction(gameId: 'kakuro'),
-          if (_store.isDaily)
-            IconButton(
-              tooltip: 'Chơi lại đề hôm nay',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => _newGame(_dailyLevel),
-            )
-          else
-            PopupMenuButton<int>(
-              tooltip: 'Ván mới',
-              icon: const Icon(Icons.refresh),
-              onSelected: _newGame,
-              itemBuilder: (_) => [
-                for (var i = 0; i < _levels.length; i++)
-                  PopupMenuItem(
-                    value: i,
-                    child: Text(
-                      'Ván mới - ${_levels[i].name} '
-                      '(${_levels[i].n}x${_levels[i].n})',
-                    ),
-                  ),
-              ],
-            ),
-        ],
+        actions: const [ScoreChip(), HubMenuAction()],
       ),
       body: Focus(
         focusNode: _focus,
@@ -457,53 +432,66 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
             Center(
               child: SingleChildScrollView(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
+                  constraints: BoxConstraints(
+                    maxWidth: fitColumnWidth(
+                      context,
+                      480,
+                      max: 700,
+                      chrome: 370,
+                    ),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _statusRow(scheme, best),
-                        const SizedBox(height: 10),
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Positioned.fill(
-                                child: Shake(
-                                  key: _shake,
-                                  child: _board(scheme),
-                                ),
-                              ),
-                              if (_toastText.isNotEmpty)
-                                Positioned(
-                                  top: -14,
-                                  left: 0,
-                                  right: 0,
-                                  child: IgnorePointer(
-                                    child: _RunToast(
-                                      key: ValueKey(_toastId),
-                                      text: _toastText,
-                                    ),
+                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 16),
+                    child: GameBlock(
+                      title: _store.isDaily
+                          ? 'Kakuro - Thử thách ngày'
+                          : 'Kakuro',
+                      onBack: () => context.go(_store.homeRoute),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _statusRow(scheme, best),
+                          const SizedBox(height: 10),
+                          AspectRatio(
+                            aspectRatio: 1,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Positioned.fill(
+                                  child: Shake(
+                                    key: _shake,
+                                    child: _board(scheme),
                                   ),
                                 ),
-                            ],
+                                if (_toastText.isNotEmpty)
+                                  Positioned(
+                                    top: -14,
+                                    left: 0,
+                                    right: 0,
+                                    child: IgnorePointer(
+                                      child: _RunToast(
+                                        key: ValueKey(_toastId),
+                                        text: _toastText,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        GlassPanel(
-                          padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _toolRow(scheme),
-                              const SizedBox(height: 10),
-                              _numPad(scheme),
-                            ],
+                          const SizedBox(height: 14),
+                          GlassPanel(
+                            padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _toolRow(scheme),
+                                const SizedBox(height: 10),
+                                _numPad(scheme),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -734,36 +722,63 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   Widget _toolRow(ColorScheme scheme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _Tool(
-          icon: Icons.undo,
-          label: 'Hoàn tác',
-          onTap: _undo.isEmpty || _won ? null : _undoMove,
-        ),
-        _Tool(
-          icon: Icons.backspace_outlined,
-          label: 'Xoá',
-          onTap: _won ? null : () => _put(0),
-        ),
-        _Tool(
-          icon: _pencil ? Icons.edit : Icons.edit_outlined,
-          label: _pencil ? 'Ghi chú: bật' : 'Ghi chú',
-          active: _pencil,
-          toggle: true,
-          onTap: () {
-            GameFx.tap();
-            setState(() => _pencil = !_pencil);
-          },
-        ),
-        _Tool(
-          icon: Icons.lightbulb_outline,
-          label: 'Gợi ý',
-          badge: _hints,
-          onTap: _won ? null : _hint,
-        ),
-      ],
+    // Nhieu nut: tu thu nho cho vua be rong, rong thi giu co tu nhien.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 26,
+        children: [
+          _Tool(
+            icon: Icons.undo,
+            label: 'Hoàn tác',
+            onTap: _undo.isEmpty || _won ? null : _undoMove,
+          ),
+          _Tool(
+            icon: Icons.backspace_outlined,
+            label: 'Xoá',
+            onTap: _won ? null : () => _put(0),
+          ),
+          _Tool(
+            icon: _pencil ? Icons.edit : Icons.edit_outlined,
+            label: _pencil ? 'Ghi chú: bật' : 'Ghi chú',
+            active: _pencil,
+            toggle: true,
+            onTap: () {
+              GameFx.tap();
+              setState(() => _pencil = !_pencil);
+            },
+          ),
+          _Tool(
+            icon: Icons.lightbulb_outline,
+            label: 'Gợi ý',
+            badge: _hints,
+            onTap: _won ? null : _hint,
+          ),
+          _Tool(
+            icon: Icons.refresh_rounded,
+            label: 'Ván mới',
+            colors: Candy.green,
+            // Thu thach ngay: choi lai de hom nay; thuong: chon muc roi choi.
+            onTap: _store.isDaily ? () => _newGame(_dailyLevel) : () {},
+            menu: _store.isDaily
+                ? null
+                : (
+                    itemBuilder: (_) => [
+                      for (var i = 0; i < _levels.length; i++)
+                        PopupMenuItem(
+                          value: i,
+                          child: Text(
+                            'Ván mới - ${_levels[i].name} '
+                            '(${_levels[i].n}x${_levels[i].n})',
+                          ),
+                        ),
+                    ],
+                    onSelected: _newGame,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -855,12 +870,24 @@ class _Tool extends StatelessWidget {
     this.active = false,
     this.toggle = false,
     this.badge,
+    this.colors,
+    this.menu,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
   final bool active;
+
+  /// Mau rieng (mac dinh xanh lam; nut bat/tat la cam).
+  final List<Color>? colors;
+
+  /// Neu co: cham vao mo menu chon thay vi goi [onTap].
+  final ({
+    List<PopupMenuEntry<int>> Function(BuildContext) itemBuilder,
+    ValueChanged<int> onSelected,
+  })?
+  menu;
 
   /// Nut bat/tat: sang khi [active], mo khi tat.
   final bool toggle;
@@ -869,12 +896,21 @@ class _Tool extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget btn = CandyButton(
-      onPressed: onTap,
-      colors: toggle ? Candy.orange : Candy.blue,
+      onPressed: menu == null ? onTap : null,
+      colors: colors ?? (toggle ? Candy.orange : Candy.blue),
       dim: onTap == null || (toggle && !active),
       padding: const EdgeInsets.all(10),
       child: Icon(icon),
     );
+    if (menu != null) {
+      btn = PopupMenuButton<int>(
+        tooltip: '',
+        padding: EdgeInsets.zero,
+        onSelected: menu!.onSelected,
+        itemBuilder: menu!.itemBuilder,
+        child: IgnorePointer(child: btn),
+      );
+    }
     if (badge != null) {
       btn = Badge(
         label: Text('$badge'),

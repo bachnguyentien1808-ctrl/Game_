@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/home/home_screen.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
@@ -41,7 +42,10 @@ final appRouter = GoRouter(
     for (final g in gameRegistry)
       _route(
         '/play/${g.id}',
-        (c) => GameIntro(gameId: g.id, child: g.builder(c)),
+        (c) => GameOverlays(
+          gameId: g.id,
+          child: GameIntro(gameId: g.id, child: g.builder(c)),
+        ),
       ),
   ],
 );

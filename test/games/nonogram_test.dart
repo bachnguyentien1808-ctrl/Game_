@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_progress.dart';
 import 'package:puzzle_hub/games/nonogram/presentation/nonogram_screen.dart';
@@ -182,17 +183,17 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.undo), findsOneWidget);
-    final undoBtn = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.undo),
+    CandyButton undoOf() => tester.widget<CandyButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.undo),
+        matching: find.byType(CandyButton),
+      ),
     );
-    expect(undoBtn.onPressed, isNotNull);
+    expect(undoOf().onPressed, isNotNull);
 
     // nut hoan tac xoa net
     await tester.tap(find.byIcon(Icons.undo));
     await tester.pumpAndSettle();
-    final undoAfter = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.undo),
-    );
-    expect(undoAfter.onPressed, isNull);
+    expect(undoOf().onPressed, isNull);
   });
 }

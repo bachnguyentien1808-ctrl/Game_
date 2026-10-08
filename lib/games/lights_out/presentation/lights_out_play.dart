@@ -9,7 +9,9 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
 
@@ -383,137 +385,143 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          leading: BackButton(onPressed: widget.onExit),
-          title: Text(_title),
-          actions: [
-            const ScoreChip(),
-            const HelpAction(gameId: 'lights_out'),
-            IconButton(
-              tooltip: _s.mode == LightsMode.random
-                  ? 'Ván mới'
-                  : 'Chơi lại ván',
-              icon: const Icon(Icons.refresh),
-              onPressed: _restart,
-            ),
-          ],
+          actions: const [ScoreChip(), HubMenuAction()],
         ),
         body: Stack(
           children: [
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints: BoxConstraints(
+                  maxWidth: modestColumnWidth(context, 680),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      GlassBar(
+                  // Khoi rong hon, thap hon (khong keo cao het man hinh).
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 700),
+                    child: GameBlock(
+                      expand: true,
+                      title: _title,
+                      onBack: widget.onExit,
+                      child: Column(
                         children: [
-                          _stat(
-                            Icons.touch_app_outlined,
-                            Candy.blue,
-                            'Lượt ${_game.moves}',
+                          GlassBar(
+                            children: [
+                              _stat(
+                                Icons.touch_app_outlined,
+                                Candy.blue,
+                                'Lượt ${_game.moves}',
+                              ),
+                              _stat(
+                                Icons.flag_outlined,
+                                Candy.green,
+                                'Tối ưu ${_game.optimal ?? '?'}',
+                              ),
+                              if (best != null)
+                                _stat(
+                                  Icons.emoji_events_outlined,
+                                  Candy.orange,
+                                  'Kỷ lục $best',
+                                ),
+                            ],
                           ),
-                          _stat(
-                            Icons.flag_outlined,
-                            Candy.green,
-                            'Tối ưu ${_game.optimal ?? '?'}',
-                          ),
-                          if (best != null)
-                            _stat(
-                              Icons.emoji_events_outlined,
-                              Candy.orange,
-                              'Kỷ lục $best',
+                          const SizedBox(height: 14),
+                          Flexible(
+                            child: Center(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: CandyFrame(
+                                  child: _Board(
+                                    shown: _shown,
+                                    hint: _hint,
+                                    reduce: reduce,
+                                    onTap: _tap,
+                                  ),
+                                ),
+                              ),
                             ),
+                          ),
+                          const SizedBox(height: 14),
+                          if (!_won)
+                            GlassPanel(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _action(
+                                    Icons.undo,
+                                    'Hoàn tác',
+                                    Candy.blue,
+                                    _game.canUndo ? _undo : null,
+                                  ),
+                                  _action(
+                                    Icons.redo,
+                                    'Làm lại bước',
+                                    Candy.indigo,
+                                    _game.canRedo ? _redo : null,
+                                  ),
+                                  _action(
+                                    Icons.tips_and_updates_outlined,
+                                    'Gợi ý (còn ${_game.hintsLeft})',
+                                    Candy.orange,
+                                    _game.hintsLeft > 0 && _hint == null
+                                        ? _showHint
+                                        : null,
+                                    badge: '${_game.hintsLeft}',
+                                  ),
+                                  _action(
+                                    Icons.refresh_rounded,
+                                    _s.mode == LightsMode.random
+                                        ? 'Ván mới'
+                                        : 'Chơi lại ván',
+                                    Candy.green,
+                                    _restart,
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (_banner)
+                            GlassPanel(
+                              child: Row(
+                                children: [
+                                  if (_s.mode == LightsMode.level &&
+                                      widget.onNextLevel != null) ...[
+                                    Expanded(
+                                      child: CandyButton(
+                                        onPressed: widget.onNextLevel,
+                                        colors: Candy.green,
+                                        child: const Text('Màn kế tiếp'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Expanded(
+                                    child: CandyButton(
+                                      onPressed: widget.onExit,
+                                      child: Text(
+                                        _s.mode == LightsMode.level
+                                            ? 'Danh sách màn'
+                                            : 'Thoát',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 40),
+                          const SizedBox(height: 10),
+                          const CandyRibbon(
+                            text: 'Bấm một ô sẽ đảo ô đó và 4 ô kề bên',
+                            colors: Candy.indigo,
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      Flexible(
-                        child: Center(
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: CandyFrame(
-                              child: _Board(
-                                shown: _shown,
-                                hint: _hint,
-                                reduce: reduce,
-                                onTap: _tap,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      if (!_won)
-                        GlassPanel(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _action(
-                                  Icons.undo,
-                                  'Hoàn tác',
-                                  Candy.blue,
-                                  _game.canUndo ? _undo : null,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _action(
-                                  Icons.redo,
-                                  'Làm lại',
-                                  Candy.indigo,
-                                  _game.canRedo ? _redo : null,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _action(
-                                  Icons.tips_and_updates_outlined,
-                                  'Gợi ý ${_game.hintsLeft}',
-                                  Candy.orange,
-                                  _game.hintsLeft > 0 && _hint == null
-                                      ? _showHint
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else if (_banner)
-                        GlassPanel(
-                          child: Row(
-                            children: [
-                              if (_s.mode == LightsMode.level &&
-                                  widget.onNextLevel != null) ...[
-                                Expanded(
-                                  child: CandyButton(
-                                    onPressed: widget.onNextLevel,
-                                    colors: Candy.green,
-                                    child: const Text('Màn kế tiếp'),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              Expanded(
-                                child: CandyButton(
-                                  onPressed: widget.onExit,
-                                  child: Text(
-                                    _s.mode == LightsMode.level
-                                        ? 'Danh sách màn'
-                                        : 'Thoát',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        const SizedBox(height: 40),
-                      const SizedBox(height: 10),
-                      const CandyRibbon(
-                        text: 'Bấm một ô sẽ đảo ô đó và 4 ô kề bên',
-                        colors: Candy.indigo,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -552,26 +560,26 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
     );
   }
 
+  /// Nut tron nho chi co bieu tuong; di chuot vao se hien chu (tooltip).
   Widget _action(
     IconData icon,
     String label,
     List<Color> colors,
-    VoidCallback? onPressed,
-  ) {
-    return CandyButton(
-      onPressed: onPressed,
-      colors: colors,
-      dim: onPressed == null,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20),
-            const SizedBox(width: 4),
-            Text(label),
-          ],
+    VoidCallback? onPressed, {
+    String? badge,
+  }) {
+    return Badge(
+      isLabelVisible: badge != null,
+      label: badge == null ? null : Text(badge),
+      child: Tooltip(
+        message: label,
+        child: CandyButton(
+          onPressed: onPressed,
+          colors: colors,
+          dim: onPressed == null,
+          circle: true,
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 24),
         ),
       ),
     );

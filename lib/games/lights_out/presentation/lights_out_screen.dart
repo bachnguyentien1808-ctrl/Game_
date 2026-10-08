@@ -8,7 +8,8 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
 import 'package:puzzle_hub/games/lights_out/presentation/lights_out_play.dart';
@@ -83,34 +84,34 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          actions: const [
-            ScoreChip(),
-            HelpAction(gameId: 'lights_out'),
-          ],
-          leading: BackButton(onPressed: () => context.go('/')),
-          title: const Text('Tắt đèn'),
+          actions: const [ScoreChip(), HubMenuAction()],
+          automaticallyImplyLeading: false,
         ),
         body: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+            constraints: const BoxConstraints(maxWidth: 640),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Column(
-                children: [
-                  GlassPanel(
-                    child: Row(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              // Tat ca trong mot khoi, ten game + mui ten o goc trai.
+              child: GameBlock(
+                expand: true,
+                title: 'Tắt đèn',
+                onBack: () => context.go('/'),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
                         _tabButton(0, Icons.stairs_outlined, 'Màn chơi'),
                         const SizedBox(width: 10),
                         _tabButton(1, Icons.shuffle, 'Ngẫu nhiên'),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _tab == 0 ? _levels(context) : _random(context),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: _tab == 0 ? _levels(context) : _random(context),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

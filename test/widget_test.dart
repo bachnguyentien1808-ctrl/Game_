@@ -41,8 +41,8 @@ void main() {
     expect(find.text('Đã chơi 3 · Thắng 1'), findsOneWidget);
     // Hang "Choi tiep" + chip tren the.
     expect(find.text('Chơi tiếp'), findsNWidgets(2));
-    expect(find.byTooltip('Cài đặt'), findsOneWidget);
-    expect(find.byTooltip('Thống kê'), findsOneWidget);
+    expect(find.byTooltip('Menu'), findsOneWidget);
+    expect(find.byTooltip('Thống kê'), findsNothing);
   });
 
   testWidgets('loc nhom Tri nho chi con Tim cap', (tester) async {

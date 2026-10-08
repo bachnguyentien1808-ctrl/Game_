@@ -13,7 +13,9 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/game2048/domain/game2048_engine.dart';
 
 const _id = '2048';
@@ -358,33 +360,7 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          leading: BackButton(onPressed: () => context.go('/')),
-          title: Text('2048  ${_g.size}x${_g.size}'),
-          actions: [
-            const ScoreChip(),
-            const HelpAction(gameId: '2048'),
-            Badge.count(
-              count: _g.undosLeft,
-              child: IconButton(
-                key: const ValueKey('undo'),
-                tooltip: 'Hoàn tác (còn ${_g.undosLeft})',
-                icon: const Icon(Icons.undo),
-                onPressed: _g.canUndo ? _undo : null,
-              ),
-            ),
-            IconButton(
-              key: const ValueKey('size'),
-              tooltip: 'Kích thước',
-              icon: const Icon(Icons.grid_view),
-              onPressed: _pickSize,
-            ),
-            IconButton(
-              key: const ValueKey('restart'),
-              tooltip: 'Ván mới',
-              icon: const Icon(Icons.refresh),
-              onPressed: _askNewGame,
-            ),
-          ],
+          actions: const [ScoreChip(), HubMenuAction()],
         ),
         body: KeyboardListener(
           focusNode: _focus,
@@ -416,73 +392,95 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
               children: [
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 440),
+                    constraints: BoxConstraints(
+                      maxWidth: modestColumnWidth(context, 660),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          GlassBar(
+                      // Khoi rong hon va khong keo cao het man hinh.
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: modestColumnWidth(context, 660) + 240,
+                        ),
+                        child: GameBlock(
+                          expand: true,
+                          title: '2048  ${_g.size}x${_g.size}',
+                          onBack: () => context.go('/'),
+                          child: Column(
                             children: [
-                              _Stat(
-                                label: 'Điểm',
-                                icon: Icons.star,
-                                colors: Candy.orange,
-                                value: _g.score,
-                                animate: _animate,
+                              GlassBar(
+                                children: [
+                                  _Stat(
+                                    label: 'Điểm',
+                                    icon: Icons.star,
+                                    colors: Candy.orange,
+                                    value: _g.score,
+                                    animate: _animate,
+                                  ),
+                                  _Stat(
+                                    label: 'Cao nhất',
+                                    icon: Icons.emoji_events,
+                                    colors: Candy.purple,
+                                    value: best,
+                                    animate: false,
+                                  ),
+                                ],
                               ),
-                              _Stat(
-                                label: 'Cao nhất',
-                                icon: Icons.emoji_events,
-                                colors: Candy.purple,
-                                value: best,
-                                animate: false,
+                              const SizedBox(height: 12),
+                              Expanded(
+                                child: Center(
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: _board(won, over),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              GlassPanel(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Badge.count(
+                                      count: _g.undosLeft,
+                                      child: _roundBtn(
+                                        Icons.undo,
+                                        Candy.blue,
+                                        _g.canUndo ? _undo : null,
+                                        'Hoàn tác (còn ${_g.undosLeft})',
+                                        const ValueKey('undo'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    _roundBtn(
+                                      Icons.grid_view,
+                                      Candy.orange,
+                                      _pickSize,
+                                      'Kích thước bàn',
+                                      const ValueKey('size'),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    _roundBtn(
+                                      Icons.refresh,
+                                      Candy.green,
+                                      _askNewGame,
+                                      'Ván mới',
+                                      const ValueKey('restart'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              CandyRibbon(
+                                text:
+                                    'Vuốt hoặc dùng mũi tên / WASD. Đích: ${_g.target}',
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: Center(
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: _board(won, over),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GlassPanel(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _roundBtn(
-                                  Icons.undo,
-                                  Candy.green,
-                                  _g.canUndo ? _undo : null,
-                                ),
-                                const SizedBox(width: 16),
-                                _roundBtn(
-                                  Icons.grid_view,
-                                  Candy.blue,
-                                  _pickSize,
-                                ),
-                                const SizedBox(width: 16),
-                                _roundBtn(
-                                  Icons.refresh,
-                                  Candy.orange,
-                                  _askNewGame,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          CandyRibbon(
-                            text:
-                                'Vuốt hoặc dùng mũi tên / WASD. Đích: ${_g.target}',
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -496,14 +494,24 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
     );
   }
 
-  Widget _roundBtn(IconData icon, List<Color> colors, VoidCallback? onTap) {
-    return CandyButton(
-      colors: colors,
-      dim: onTap == null,
-      circle: true,
-      padding: const EdgeInsets.all(10),
-      onPressed: onTap,
-      child: Icon(icon, size: 26),
+  Widget _roundBtn(
+    IconData icon,
+    List<Color> colors,
+    VoidCallback? onTap,
+    String tip,
+    Key key,
+  ) {
+    return Tooltip(
+      message: tip,
+      child: CandyButton(
+        key: key,
+        colors: colors,
+        dim: onTap == null,
+        circle: true,
+        padding: const EdgeInsets.all(10),
+        onPressed: onTap,
+        child: Icon(icon, size: 26),
+      ),
     );
   }
 
@@ -651,36 +659,56 @@ class _Overlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
+        color: Colors.black.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CandyRibbon(text: title, colors: Candy.orange),
-            if (points != null && points! > 0) ...[
-              const SizedBox(height: 10),
-              Text(
-                '+${Scoring.format(points!)} điểm',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
+        // Tieu de + nut gom chung trong mot khoi thong bao.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: CandyFrame(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CandyRibbon(text: title, colors: Candy.orange),
+                    if (points != null && points! > 0) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        '+${Scoring.format(points!)} điểm',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 12,
+                      runSpacing: 10,
+                      children: [
+                        CandyButton(
+                          colors: Candy.green,
+                          onPressed: onPrimary,
+                          child: Text(primaryLabel),
+                        ),
+                        if (secondaryLabel != null)
+                          CandyButton(
+                            onPressed: onSecondary,
+                            child: Text(secondaryLabel!),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
-            const SizedBox(height: 16),
-            CandyButton(
-              colors: Candy.green,
-              onPressed: onPrimary,
-              child: Text(primaryLabel),
             ),
-            if (secondaryLabel != null) ...[
-              const SizedBox(height: 12),
-              CandyButton(onPressed: onSecondary, child: Text(secondaryLabel!)),
-            ],
-          ],
+          ),
         ),
       ),
     );

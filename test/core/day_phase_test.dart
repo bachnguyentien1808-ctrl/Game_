@@ -31,7 +31,7 @@ void main() {
     expect(BackdropAssets.resolve(sky, DayPhase.day), sky);
     expect(
       BackdropAssets.resolve(sky, DayPhase.dusk),
-      'assets/images/bg_sky_dusk.webp',
+      'assets/images/bg_sky_dusk3.webp',
     );
     expect(
       BackdropAssets.resolve(sky, DayPhase.night),
@@ -40,11 +40,11 @@ void main() {
     expect(BackdropAssets.resolve(game, DayPhase.day), game);
     expect(
       BackdropAssets.resolve(game, DayPhase.dusk),
-      'assets/images/bg_sky_dusk.webp',
+      'assets/images/bg_game_dusk.webp',
     );
     expect(
       BackdropAssets.resolve(game, DayPhase.night),
-      'assets/images/bg_sky_night.webp',
+      'assets/images/bg_game_night.webp',
     );
   });
 }

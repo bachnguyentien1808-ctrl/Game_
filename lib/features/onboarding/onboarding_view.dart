@@ -179,17 +179,23 @@ class _OnboardingViewState extends State<OnboardingView> {
                     ],
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: SizedBox(
-                      width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 240,
+                        minHeight: 58,
+                      ),
                       child: CandyButton(
                         onPressed: _next,
                         colors: last ? Candy.green : Candy.orange,
-                        radius: 20,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        radius: 22,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
                         child: Text(
                           last ? 'Bắt đầu chơi' : 'Tiếp',
-                          style: const TextStyle(fontSize: 18),
+                          style: const TextStyle(fontSize: 22),
                         ),
                       ),
                     ),

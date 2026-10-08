@@ -70,15 +70,21 @@ class GameBackdropScope extends InheritedWidget {
 
 /// Chon file anh nen theo buoi, chi dung anh do nguoi dung cung cap.
 /// Man hinh chinh: bg_sky (ngay), bg_sky_dusk, bg_sky_night.
-/// Cac game: bg_game (ngay); chieu va dem dung chung anh chieu/dem cua man
-/// hinh chinh vi cung mot kieu canh dao bay.
+/// Cac game: bg_game (ngay), bg_game_dusk (chieu), bg_game_night (dem).
 abstract final class BackdropAssets {
   static const _dir = 'assets/images/';
 
   static String resolve(String dayAsset, DayPhase phase) {
     if (phase == DayPhase.day) return dayAsset;
     final base = dayAsset.replaceFirst(_dir, '').replaceFirst('.webp', '');
-    final scene = base == 'bg_game' ? 'bg_sky' : base;
+    if (base == 'bg_game') {
+      return '${_dir}bg_game${phase == DayPhase.night ? '_night' : '_dusk'}.webp';
+    }
+    // Trang chu buoi chieu dung anh rieng (cac game co anh chieu rieng ben tren).
+    if (base == 'bg_sky' && phase == DayPhase.dusk) {
+      return '${_dir}bg_sky_dusk3.webp';
+    }
+    final scene = base;
     return '$_dir$scene${phase.suffix}.webp';
   }
 }
@@ -260,7 +266,7 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: light
-                  ? const [Color(0x00FFFFFF), Color(0x00FFFFFF)]
+                  ? const [Color(0x2E0F2447), Color(0x4D0F2447)]
                   : const [Color(0x00000000), Color(0x00000000)],
             ),
           ),
@@ -284,13 +290,13 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
     );
   }
 
-  /// Nang do anh nen (dem sang hon nhieu, chieu hoi sang) cho de nhin; ban
-  /// ngay giu nguyen.
+  /// Chinh do sang anh nen cho diu mat (dem sang vua phai, chieu hoi sang); ban
+  /// ngay giu nguyen, lop phu ben duoi se giam choi.
   static ColorFilter _lift(DayPhase p) {
     final (k, off) = switch (p) {
       DayPhase.day => (1.0, 0.0),
-      DayPhase.dusk => (1.1, 5.0),
-      DayPhase.night => (1.4, 18.0),
+      DayPhase.dusk => (1.05, 2.0),
+      DayPhase.night => (1.0, 0.0),
     };
     return ColorFilter.matrix([
       k, 0, 0, 0, off, //

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 
 /// O diem gon dat trong AppBar cua moi game: luon thay tong diem khi choi.
 /// Diem dem tang dan khi duoc cong, kem "+N" bay len mot nhip.
@@ -86,58 +87,65 @@ class _ScoreViewState extends State<_ScoreView>
                 child: Builder(
                   builder: (context) {
                     final g = GlassStyle.of(context);
-                    return Container(
-                      key: const Key('score-chip'),
-                      padding: const EdgeInsets.fromLTRB(5, 4, 12, 4),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        color: g.pill,
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x40000000),
-                            offset: Offset(0, 2),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Dong xu vang.
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFFE59A00),
-                                width: 2,
-                              ),
-                              gradient: const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Color(0xFFFFE066), Color(0xFFFFB300)],
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showAchievements(context),
+                      child: Container(
+                        key: const Key('score-chip'),
+                        padding: const EdgeInsets.fromLTRB(5, 4, 12, 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color: g.pill,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x40000000),
+                              offset: Offset(0, 2),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Dong xu vang.
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFE59A00),
+                                  width: 2,
+                                ),
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0xFFFFE066),
+                                    Color(0xFFFFB300),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          TweenAnimationBuilder<int>(
-                            key: ValueKey(widget.points),
-                            tween: IntTween(begin: _from, end: widget.points),
-                            duration: reduce
-                                ? Duration.zero
-                                : const Duration(milliseconds: 700),
-                            curve: Curves.easeOutCubic,
-                            builder: (_, v, _) => Text(
-                              Scoring.format(v),
-                              style: TextStyle(
-                                color: g.pillText,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
+                            const SizedBox(width: 6),
+                            TweenAnimationBuilder<int>(
+                              key: ValueKey(widget.points),
+                              tween: IntTween(begin: _from, end: widget.points),
+                              duration: reduce
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 700),
+                              curve: Curves.easeOutCubic,
+                              builder: (_, v, _) => Text(
+                                Scoring.format(v),
+                                style: TextStyle(
+                                  color: g.pillText,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },

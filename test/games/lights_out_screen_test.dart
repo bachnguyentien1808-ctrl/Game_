@@ -37,12 +37,12 @@ void main() {
     expect(st.loadState(lightsOutId)!['moves'], 4);
 
     // Hoan tac dua ve 3 luot; goi y tru so lan con lai.
-    await t.tap(find.text('Hoàn tác'));
+    await t.tap(find.byTooltip('Hoàn tác'));
     await t.pump(const Duration(milliseconds: 400));
     expect(find.text('Lượt 3'), findsOneWidget);
-    await t.tap(find.textContaining('Gợi ý'));
+    await t.tap(find.byTooltip('Gợi ý (còn 3)'));
     await t.pump();
-    expect(find.text('Gợi ý 2'), findsOneWidget);
+    expect(find.byTooltip('Gợi ý (còn 2)'), findsOneWidget);
 
     await t.pumpWidget(const SizedBox());
   });

@@ -12,13 +12,13 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/minesweeper/domain/minesweeper_engine.dart';
 
 const _id = 'minesweeper';
 const _prefsId = 'minesweeper.prefs';
 const _maxHints = 3;
-const _minCell = 32.0;
 
 /// Mau so 1-8 tren nen kem cua o da mo.
 const _numColors = [
@@ -388,132 +388,186 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
         : _game.lost
         ? Icons.sentiment_very_dissatisfied
         : Icons.sentiment_satisfied;
+    // Khung tu chinh theo hinh dang ban: ban rong (nhieu cot) thi khung rong,
+    // thap; ban vuong thi khung gan vuong. Ban luon hien du, khong cuon.
+    final screen = MediaQuery.sizeOf(context);
+    final aspect = _game.cols / _game.rows;
+    final narrow = screen.width < 600;
+    final boardH = narrow
+        ? ((screen.width - 70) / aspect).clamp(220.0, 400.0)
+        : min<double>(
+            min<double>(660, screen.height - 360),
+            (screen.width - 150) / aspect,
+          ).clamp(220.0, 660.0);
+    final blockW = narrow
+        ? screen.width
+        : (boardH * aspect + 90).clamp(520.0, 1200.0);
+    final blockH = boardH + 340;
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-          title: Text(
-            _game.won
-                ? 'Dò mìn - Thắng!'
-                : _game.lost
-                ? 'Dò mìn - Nổ mìn'
-                : 'Dò mìn',
-          ),
-          actions: [
-            const ScoreChip(),
-            const HelpAction(gameId: 'minesweeper'),
-            IconButton(
-              key: const Key('hint'),
-              tooltip: 'Gợi ý (còn ${_maxHints - _hintsUsed})',
-              icon: const Icon(Icons.lightbulb_outline),
-              onPressed: _useHint,
-            ),
-            if (!_daily)
-              IconButton(
-                key: const Key('level'),
-                tooltip: 'Độ khó',
-                icon: const Icon(Icons.tune),
-                onPressed: _pickLevel,
-              ),
-          ],
+          actions: const [ScoreChip(), HubMenuAction()],
         ),
         body: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: BoxConstraints(maxWidth: blockW, maxHeight: blockH),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Column(
-                children: [
-                  GlassBar(
-                    children: [
-                      GlassStat(
-                        icon: Icons.flag,
-                        colors: Candy.red,
-                        text: '${_game.flagsLeft}',
-                      ),
-                      CandyButton(
-                        key: const Key('smiley'),
-                        onPressed: () => setState(_newGame),
-                        colors: Candy.orange,
-                        circle: true,
-                        padding: const EdgeInsets.all(8),
-                        child: Tooltip(
-                          message: _daily ? 'Chơi lại cùng đề' : 'Ván mới',
-                          child: Icon(face, size: 34),
-                        ),
-                      ),
-                      GlassStat(
-                        icon: Icons.timer_outlined,
-                        text: '$_seconds s',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  CandyRibbon(
-                    text: _daily
-                        ? 'Thử thách ngày · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
-                        : '${_level.label} · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
-                              '${best == null ? '' : ' · Kỷ lục: $best s'}',
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(child: _board(s)),
-                  const SizedBox(height: 8),
-                  GlassPanel(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+              child: GameBlock(
+                expand: true,
+                title: _game.won
+                    ? 'Dò mìn - Thắng!'
+                    : _game.lost
+                    ? 'Dò mìn - Nổ mìn'
+                    : 'Dò mìn',
+                onBack: () => context.go(_store.homeRoute),
+                child: Column(
+                  children: [
+                    GlassBar(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CandyButton(
-                              onPressed: () =>
-                                  setState(() => _flagMode = false),
-                              dim: _flagMode,
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.touch_app),
-                                  SizedBox(width: 6),
-                                  Text('Mở ô'),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            CandyButton(
-                              onPressed: () => setState(() => _flagMode = true),
-                              colors: Candy.orange,
-                              dim: !_flagMode,
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.flag),
-                                  SizedBox(width: 6),
-                                  Text('Cắm cờ'),
-                                ],
-                              ),
-                            ),
-                          ],
+                        GlassStat(
+                          icon: Icons.flag,
+                          colors: Candy.red,
+                          text: '${_game.flagsLeft}',
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
-                          textAlign: TextAlign.center,
-                          style: t.bodySmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            shadows: const [
-                              Shadow(color: Color(0x99000000), blurRadius: 3),
-                            ],
+                        Tooltip(
+                          message: _daily ? 'Chơi lại cùng đề' : 'Ván mới',
+                          child: CandyButton(
+                            key: const Key('smiley'),
+                            onPressed: () => setState(_newGame),
+                            colors: Candy.orange,
+                            circle: true,
+                            padding: const EdgeInsets.all(8),
+                            child: Icon(face, size: 34),
                           ),
+                        ),
+                        GlassStat(
+                          icon: Icons.timer_outlined,
+                          text: '$_seconds s',
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    CandyRibbon(
+                      text: _daily
+                          ? 'Thử thách ngày · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
+                          : '${_level.label} · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
+                                '${best == null ? '' : ' · Kỷ lục: $best s'}',
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(child: _board(s)),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 10,
+                            runSpacing: 8,
+                            children: [
+                              CandyButton(
+                                onPressed: () =>
+                                    setState(() => _flagMode = false),
+                                dim: _flagMode,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.touch_app),
+                                    SizedBox(width: 6),
+                                    Text('Mở ô'),
+                                  ],
+                                ),
+                              ),
+                              CandyButton(
+                                onPressed: () =>
+                                    setState(() => _flagMode = true),
+                                colors: Candy.orange,
+                                dim: !_flagMode,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.flag),
+                                    SizedBox(width: 6),
+                                    Text('Cắm cờ'),
+                                  ],
+                                ),
+                              ),
+                              Tooltip(
+                                message:
+                                    'Gợi ý (còn ${_maxHints - _hintsUsed})',
+                                child: CandyButton(
+                                  key: const Key('hint'),
+                                  onPressed: _useHint,
+                                  colors: Candy.teal,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.lightbulb_outline),
+                                      const SizedBox(width: 6),
+                                      Text('Gợi ý (${_maxHints - _hintsUsed})'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (!_daily)
+                                Tooltip(
+                                  message: 'Chọn độ khó',
+                                  child: CandyButton(
+                                    key: const Key('level'),
+                                    onPressed: _pickLevel,
+                                    colors: Candy.purple,
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.tune),
+                                        SizedBox(width: 6),
+                                        Text('Độ khó'),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              Tooltip(
+                                message: _daily
+                                    ? 'Chơi lại cùng đề'
+                                    : 'Ván mới',
+                                child: CandyButton(
+                                  key: const Key('new-game'),
+                                  onPressed: () => setState(_newGame),
+                                  colors: Candy.green,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.refresh_rounded),
+                                      const SizedBox(width: 6),
+                                      Text(_daily ? 'Chơi lại' : 'Ván mới'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
+                            textAlign: TextAlign.center,
+                            style: t.bodySmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              shadows: const [
+                                Shadow(color: Color(0x99000000), blurRadius: 3),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -525,13 +579,15 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   Widget _board(ColorScheme s) {
     return LayoutBuilder(
       builder: (context, box) {
-        final fit = (box.maxWidth - 40) / _game.cols;
-        final cell = fit.clamp(_minCell, 46.0);
+        // Vua khit khung: o nho lai de hien tron ban, khong cuon / thu phong.
+        final fit = min(
+          (box.maxWidth - 36) / _game.cols,
+          (box.maxHeight - 36) / _game.rows,
+        );
+        final cell = fit.clamp(8.0, 56.0);
         final w = cell * _game.cols;
         final h = cell * _game.rows;
         final reduce = _reduce;
-        final boardW = max(box.maxWidth, w + 40);
-        final boardH = max(box.maxHeight, h + 40);
         final grid = CandyFrame(
           child: SizedBox(
             width: w,
@@ -554,20 +610,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
             Positioned.fill(
               child: Shake(
                 key: _shake,
-                child: ClipRect(
-                  child: InteractiveViewer(
-                    key: ValueKey('viewer-$_gen'),
-                    constrained: false,
-                    minScale: 0.5,
-                    maxScale: 3,
-                    boundaryMargin: const EdgeInsets.all(24),
-                    child: SizedBox(
-                      width: boardW,
-                      height: boardH,
-                      child: Center(child: grid),
-                    ),
-                  ),
-                ),
+                child: Center(child: grid),
               ),
             ),
             Positioned.fill(

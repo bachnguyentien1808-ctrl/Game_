@@ -193,3 +193,61 @@ class GlassStat extends StatelessWidget {
     );
   }
 }
+
+/// Nut X tron o goc tren ben phai cua mot khoi kinh; di chuot vao thi do len.
+class GlassCloseButton extends StatefulWidget {
+  const GlassCloseButton({required this.onTap, super.key});
+
+  final VoidCallback onTap;
+
+  @override
+  State<GlassCloseButton> createState() => _GlassCloseButtonState();
+}
+
+class _GlassCloseButtonState extends State<GlassCloseButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Đóng',
+      child: Semantics(
+        button: true,
+        label: 'Đóng',
+        excludeSemantics: true,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            key: const Key('glass-close'),
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _hover
+                    ? const Color(0xFFE53935)
+                    : Colors.white.withValues(alpha: .18),
+                border: Border.all(
+                  color: _hover
+                      ? const Color(0xFFFFCDD2)
+                      : Colors.white.withValues(alpha: .55),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

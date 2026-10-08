@@ -12,7 +12,9 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:puzzle_hub/games/memory/presentation/memory_card_view.dart';
 
@@ -247,42 +249,43 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-        title: Text(_isDaily ? 'Tìm cặp - Thử thách ngày' : 'Tìm cặp'),
-        actions: [
-          const ScoreChip(),
-          const HelpAction(gameId: 'memory'),
-          IconButton(
-            tooltip: _isDaily ? 'Chơi lại cùng đề' : 'Ván mới',
-            icon: const Icon(Icons.refresh),
-            onPressed: _restart,
-          ),
-        ],
+        actions: const [ScoreChip(), HubMenuAction()],
       ),
       body: Stack(
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
+              constraints: BoxConstraints(
+                maxWidth: modestColumnWidth(context, 780),
+              ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  children: [
-                    _statsRow(s, best),
-                    const SizedBox(height: 10),
-                    CandyRibbon(
-                      text:
-                          '${_game.size.label} · ${_game.size.pairs} cặp'
-                          '${best == null ? '' : ' · Kỷ lục: $best lượt'}',
+                // Khoi rong hon, thap hon (khong keo cao het man hinh).
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 860),
+                  child: GameBlock(
+                    expand: true,
+                    title: _isDaily ? 'Tìm cặp - Thử thách ngày' : 'Tìm cặp',
+                    onBack: () => context.go(_store.homeRoute),
+                    child: Column(
+                      children: [
+                        _statsRow(s, best),
+                        const SizedBox(height: 10),
+                        CandyRibbon(
+                          text:
+                              '${_game.size.label} · ${_game.size.pairs} cặp'
+                              '${best == null ? '' : ' · Kỷ lục: $best lượt'}',
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(child: _board(s)),
+                        const SizedBox(height: 12),
+                        GlassPanel(
+                          padding: const EdgeInsets.all(10),
+                          child: _actions(),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Expanded(child: _board(s)),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      padding: const EdgeInsets.all(10),
-                      child: _actions(),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -420,6 +423,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   Widget _actions() {
     final canPeek = !_locked && !_game.waiting && _game.peeksLeft > 0;
     final canPause = !_game.won;
+    final compact = MediaQuery.sizeOf(context).width < 480;
     return Row(
       children: [
         Expanded(
@@ -436,7 +440,9 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    'Nhìn trước (${_game.peeksLeft})',
+                    compact
+                        ? '${_game.peeksLeft}'
+                        : 'Nhìn trước (${_game.peeksLeft})',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -444,7 +450,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: CandyButton(
             key: const ValueKey('memory-pause'),
@@ -456,14 +462,41 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(_paused ? Icons.play_arrow : Icons.pause),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _paused ? 'Tiếp tục' : 'Tạm dừng',
-                    overflow: TextOverflow.ellipsis,
+                if (!compact) const SizedBox(width: 6),
+                if (!compact)
+                  Flexible(
+                    child: Text(
+                      _paused ? 'Tiếp tục' : 'Tạm dừng',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Tooltip(
+            message: _isDaily ? 'Chơi lại cùng đề' : 'Ván mới',
+            child: CandyButton(
+              key: const ValueKey('memory-new'),
+              onPressed: _restart,
+              colors: Candy.green,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.refresh_rounded),
+                  if (!compact) const SizedBox(width: 6),
+                  if (!compact)
+                    Flexible(
+                      child: Text(
+                        _isDaily ? 'Chơi lại' : 'Ván mới',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

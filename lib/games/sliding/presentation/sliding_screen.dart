@@ -12,7 +12,9 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/sliding/domain/sliding_engine.dart';
 import 'package:puzzle_hub/games/sliding/presentation/sliding_art.dart';
 
@@ -557,102 +559,107 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-          title: Text(
-            _won
-                ? 'Xếp số ${n}x$n - Thắng!'
-                : 'Xếp số ${n}x$n${widget.daily != null ? ' · Hôm nay' : ''}',
-          ),
-          actions: [
-            const ScoreChip(),
-            const HelpAction(gameId: 'sliding'),
-            IconButton(
-              tooltip: widget.daily != null ? 'Chơi lại cùng đề' : 'Ván mới',
-              icon: const Icon(Icons.refresh),
-              onPressed: _shuffling ? null : _newGame,
-            ),
-            IconButton(
-              tooltip: 'Tuỳ chọn',
-              icon: const Icon(Icons.tune),
-              onPressed: _openSettings,
-            ),
-          ],
+          actions: const [ScoreChip(), HubMenuAction()],
         ),
         body: Stack(
           children: [
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints: BoxConstraints(
+                  maxWidth: fitColumnWidth(context, 440, max: 640, chrome: 385),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GlassBar(
-                        children: [
-                          _Stat(
-                            icon: Icons.touch_app_outlined,
-                            colors: Candy.orange,
-                            label: 'Lượt',
-                            value: '${_game.moves}',
-                          ),
-                          ValueListenableBuilder<int>(
-                            valueListenable: _tick,
-                            builder: (_, _, _) => _Stat(
-                              icon: Icons.timer_outlined,
-                              colors: Candy.blue,
-                              label: 'Giờ',
-                              value: _fmtTime(_elapsed),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  child: GameBlock(
+                    title: _won
+                        ? 'Xếp số ${n}x$n - Thắng!'
+                        : 'Xếp số ${n}x$n${widget.daily != null ? ' · Hôm nay' : ''}',
+                    onBack: () => context.go(_store.homeRoute),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GlassBar(
+                          children: [
+                            _Stat(
+                              icon: Icons.touch_app_outlined,
+                              colors: Candy.orange,
+                              label: 'Lượt',
+                              value: '${_game.moves}',
                             ),
-                          ),
-                          Flexible(
-                            child: _Stat(
-                              icon: Icons.emoji_events_outlined,
-                              colors: Candy.purple,
-                              label: 'Kỷ lục',
-                              value: bestMoves == null
-                                  ? '-'
-                                  : '$bestMoves · ${bestTime == null ? '-' : _fmtTime(bestTime * 1000)}',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _PlacedBar(
-                        count: _shuffling ? 0 : _inPlaceCount(),
-                        total: n * n - 1,
-                      ),
-                      const SizedBox(height: 10),
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Shake(
-                            key: _shakeKey,
-                            child: CandyFrame(padding: 6, child: _buildBoard()),
-                          ),
-                          if (_toastValues.isNotEmpty)
-                            Positioned(
-                              top: -14,
-                              left: 0,
-                              right: 0,
-                              child: IgnorePointer(
-                                child: _PlacedToast(
-                                  key: ValueKey(_toastId),
-                                  values: _toastValues,
-                                ),
+                            ValueListenableBuilder<int>(
+                              valueListenable: _tick,
+                              builder: (_, _, _) => _Stat(
+                                icon: Icons.timer_outlined,
+                                colors: Candy.blue,
+                                label: 'Giờ',
+                                value: _fmtTime(_elapsed),
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildActions(),
-                      const SizedBox(height: 8),
-                      CandyRibbon(
-                        text: _imageMode
-                            ? 'Ghép lại bức tranh, ô trống ở góc dưới phải'
-                            : 'Xếp số từ 1 đến ${n * n - 1}, ô trống ở góc dưới phải',
-                      ),
-                    ],
+                            Flexible(
+                              child: _Stat(
+                                icon: Icons.emoji_events_outlined,
+                                colors: Candy.purple,
+                                label: 'Kỷ lục',
+                                value: bestMoves == null
+                                    ? '-'
+                                    : '$bestMoves · ${bestTime == null ? '-' : _fmtTime(bestTime * 1000)}',
+                              ),
+                            ),
+                            Tooltip(
+                              message: 'Tuỳ chọn',
+                              child: CandyButton(
+                                colors: Candy.indigo,
+                                circle: true,
+                                padding: const EdgeInsets.all(8),
+                                onPressed: _openSettings,
+                                child: const Icon(Icons.tune, size: 22),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        _PlacedBar(
+                          count: _shuffling ? 0 : _inPlaceCount(),
+                          total: n * n - 1,
+                        ),
+                        const SizedBox(height: 10),
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Shake(
+                              key: _shakeKey,
+                              child: CandyFrame(
+                                padding: 6,
+                                child: _buildBoard(),
+                              ),
+                            ),
+                            if (_toastValues.isNotEmpty)
+                              Positioned(
+                                top: -14,
+                                left: 0,
+                                right: 0,
+                                child: IgnorePointer(
+                                  child: _PlacedToast(
+                                    key: ValueKey(_toastId),
+                                    values: _toastValues,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildActions(),
+                        const SizedBox(height: 8),
+                        CandyRibbon(
+                          text: _imageMode
+                              ? 'Ghép lại bức tranh, ô trống ở góc dưới phải'
+                              : 'Xếp số từ 1 đến ${n * n - 1}, ô trống ở góc dưới phải',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -704,13 +711,13 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
             Icons.undo,
             'Hoàn tác',
             (_locked || !_game.canUndo) ? null : _undo,
-            Candy.green,
+            Candy.blue,
           ),
           btn(
             Icons.lightbulb_outline,
             'Gợi ý',
             _locked ? null : _hint,
-            Candy.orange,
+            Candy.teal,
             badge: '$_hintsLeft',
           ),
           Listener(
@@ -736,7 +743,13 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
             _paused ? Icons.play_arrow : Icons.pause,
             _paused ? 'Tiếp tục' : 'Tạm dừng',
             (_won || _shuffling) ? null : _togglePause,
-            Candy.blue,
+            Candy.orange,
+          ),
+          btn(
+            Icons.refresh_rounded,
+            widget.daily != null ? 'Chơi lại cùng đề' : 'Ván mới',
+            _shuffling ? null : _newGame,
+            Candy.green,
           ),
         ],
       ),
@@ -746,170 +759,183 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
   Widget _buildBoard() {
     final n = _game.size;
     const gap = 6.0;
-    return AspectRatio(
-      aspectRatio: 1,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final side = c.maxWidth;
-          final cell = (side - gap * (n - 1)) / n;
-          final tiles = _display ?? _game.tiles;
-          final fast = _reduceMotion;
-          final tileDur = fast
-              ? Duration.zero
-              : (_shuffling
-                    ? null // theo tung o
-                    : const Duration(milliseconds: 150));
-          final sweepMs = 140 * n * n ~/ 2;
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapUp: (d) {
-              final col = (d.localPosition.dx / (cell + gap)).floor();
-              final row = (d.localPosition.dy / (cell + gap)).floor();
-              if (col < 0 || col >= n || row < 0 || row >= n) return;
-              _tap(row * n + col);
-            },
-            onPanStart: (_) {
-              _pan = Offset.zero;
-              _panFired = false;
-            },
-            onPanUpdate: (d) {
-              if (_panFired) return;
-              _pan += d.delta;
-              if (_pan.distance < 16) return;
-              _panFired = true;
-              if (_pan.dx.abs() > _pan.dy.abs()) {
-                _swipe(_pan.dx > 0 ? SlideDir.right : SlideDir.left);
-              } else {
-                _swipe(_pan.dy > 0 ? SlideDir.down : SlideDir.up);
-              }
-            },
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                for (var i = 0; i < n * n; i++)
-                  Positioned(
-                    left: (i % n) * (cell + gap),
-                    top: (i ~/ n) * (cell + gap),
-                    width: cell,
-                    height: cell,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.32),
-                        borderRadius: BorderRadius.circular(cell * .14),
-                        border: Border.all(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                for (var i = 0; i < tiles.length; i++)
-                  if (tiles[i] != 0)
-                    AnimatedPositioned(
-                      key: ValueKey('t${tiles[i]}'),
-                      duration:
-                          tileDur ??
-                          Duration(milliseconds: 520 + tiles[i] * 22),
-                      curve: _shuffling
-                          ? Curves.easeInOutCubic
-                          : Curves.easeOutCubic,
+    // Choi so: nen den; choi hinh: nen sang cho de nhin tranh.
+    final light = _imageMode;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: light ? const Color(0xFFEAF2FF) : const Color(0xFF05070D),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final side = c.maxWidth;
+            final cell = (side - gap * (n - 1)) / n;
+            final tiles = _display ?? _game.tiles;
+            final fast = _reduceMotion;
+            final tileDur = fast
+                ? Duration.zero
+                : (_shuffling
+                      ? null // theo tung o
+                      : const Duration(milliseconds: 150));
+            final sweepMs = 140 * n * n ~/ 2;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (d) {
+                final col = (d.localPosition.dx / (cell + gap)).floor();
+                final row = (d.localPosition.dy / (cell + gap)).floor();
+                if (col < 0 || col >= n || row < 0 || row >= n) return;
+                _tap(row * n + col);
+              },
+              onPanStart: (_) {
+                _pan = Offset.zero;
+                _panFired = false;
+              },
+              onPanUpdate: (d) {
+                if (_panFired) return;
+                _pan += d.delta;
+                if (_pan.distance < 16) return;
+                _panFired = true;
+                if (_pan.dx.abs() > _pan.dy.abs()) {
+                  _swipe(_pan.dx > 0 ? SlideDir.right : SlideDir.left);
+                } else {
+                  _swipe(_pan.dy > 0 ? SlideDir.down : SlideDir.up);
+                }
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (var i = 0; i < n * n; i++)
+                    Positioned(
                       left: (i % n) * (cell + gap),
                       top: (i ~/ n) * (cell + gap),
                       width: cell,
                       height: cell,
-                      child: _TileView(
-                        value: tiles[i],
-                        n: n,
-                        cell: cell,
-                        imageMode: _imageMode,
-                        art: _art,
-                        showNum: !_imageMode || _showNums,
-                        inPlace: !_shuffling && tiles[i] == i + 1,
-                        lit: _won,
-                        litDelay: Duration(
-                          milliseconds: fast
-                              ? 0
-                              : (tiles[i] - 1) * sweepMs ~/ (n * n),
-                        ),
-                        hinted: _hintTile == i,
-                        won: _won,
-                      ),
-                    ),
-                if (_won && _imageMode)
-                  Positioned(
-                    left: (n - 1) * (cell + gap),
-                    top: (n - 1) * (cell + gap),
-                    width: cell,
-                    height: cell,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: Duration(
-                        milliseconds: fast ? 0 : 140 * n * n ~/ 2,
-                      ),
-                      builder: (_, v, child) =>
-                          Opacity(opacity: v, child: child),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: CustomPaint(
-                          painter: ArtTilePainter(
-                            art: _art,
-                            row: n - 1,
-                            col: n - 1,
-                            n: n,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (_peek)
-                  Positioned.fill(
-                    child: _SolvedPreview(
-                      imageMode: _imageMode,
-                      art: _art,
-                      n: n,
-                    ),
-                  ),
-                if (_paused)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTap: _togglePause,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: GlassStyle.of(context).inner,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.pause_circle_outline,
-                                size: 56,
-                                color: Candy.gold,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Tạm dừng',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              Text(
-                                'Chạm để tiếp tục',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                            ],
+                          color: light
+                              ? const Color(0xFF9DB4D6).withValues(alpha: 0.35)
+                              : Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(cell * .14),
+                          border: Border.all(
+                            color: light
+                                ? const Color(0xFF6F8BB5)
+                                      .withValues(alpha: 0.45)
+                                : Colors.white.withValues(alpha: 0.10),
+                            width: 2,
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          );
-        },
+                  for (var i = 0; i < tiles.length; i++)
+                    if (tiles[i] != 0)
+                      AnimatedPositioned(
+                        key: ValueKey('t${tiles[i]}'),
+                        duration:
+                            tileDur ??
+                            Duration(milliseconds: 520 + tiles[i] * 22),
+                        curve: _shuffling
+                            ? Curves.easeInOutCubic
+                            : Curves.easeOutCubic,
+                        left: (i % n) * (cell + gap),
+                        top: (i ~/ n) * (cell + gap),
+                        width: cell,
+                        height: cell,
+                        child: _TileView(
+                          value: tiles[i],
+                          n: n,
+                          cell: cell,
+                          imageMode: _imageMode,
+                          art: _art,
+                          showNum: !_imageMode || _showNums,
+                          inPlace: !_shuffling && tiles[i] == i + 1,
+                          lit: _won,
+                          litDelay: Duration(
+                            milliseconds: fast
+                                ? 0
+                                : (tiles[i] - 1) * sweepMs ~/ (n * n),
+                          ),
+                          hinted: _hintTile == i,
+                          won: _won,
+                        ),
+                      ),
+                  if (_won && _imageMode)
+                    Positioned(
+                      left: (n - 1) * (cell + gap),
+                      top: (n - 1) * (cell + gap),
+                      width: cell,
+                      height: cell,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: Duration(
+                          milliseconds: fast ? 0 : 140 * n * n ~/ 2,
+                        ),
+                        builder: (_, v, child) =>
+                            Opacity(opacity: v, child: child),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: CustomPaint(
+                            painter: ArtTilePainter(
+                              art: _art,
+                              row: n - 1,
+                              col: n - 1,
+                              n: n,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (_peek)
+                    Positioned.fill(
+                      child: _SolvedPreview(
+                        imageMode: _imageMode,
+                        art: _art,
+                        n: n,
+                      ),
+                    ),
+                  if (_paused)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: _togglePause,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: GlassStyle.of(context).inner,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.pause_circle_outline,
+                                  size: 56,
+                                  color: Candy.gold,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Tạm dừng',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  'Chạm để tiếp tục',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

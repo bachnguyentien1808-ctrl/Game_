@@ -9,6 +9,7 @@ import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/game_logo.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/howto/how_to_sheet.dart';
@@ -101,7 +102,6 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
           return CustomScrollView(
             slivers: [
               SliverAppBar(
-                pinned: true,
                 toolbarHeight: 140,
                 leadingWidth: 240,
                 leading: const Padding(
@@ -124,17 +124,11 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                   ),
                   const SizedBox(width: 8),
                   _RoundAction(
-                    tooltip: 'Thống kê',
-                    icon: Icons.insights_rounded,
-                    colors: Candy.blue,
-                    onPressed: () => context.go('/stats'),
-                  ),
-                  const SizedBox(width: 8),
-                  _RoundAction(
-                    tooltip: 'Cài đặt',
+                    tooltip: 'Menu',
                     icon: Icons.settings_rounded,
                     colors: Candy.purple,
-                    onPressed: () => context.go('/settings'),
+                    onPressed: () =>
+                        showHubMenu(context, top: 84, showHome: false),
                   ),
                   const SizedBox(width: 14),
                 ],
@@ -149,7 +143,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                       children: [
                         StaggerIn(
                           animation: _slot(0),
-                          child: _ScoreBanner(points: store.totalPoints),
+                          child: GestureDetector(
+                            onTap: () => showAchievements(context, top: 150),
+                            child: _ScoreBanner(points: store.totalPoints),
+                          ),
                         ),
                         const SizedBox(height: 14),
                         StaggerIn(
@@ -519,6 +516,10 @@ class _ResumeRow extends StatelessWidget {
 
   final List<GameInfo> games;
 
+  /// Toi da 5 the moi hang, du rong thi xuong dong.
+  static const _maxPerRow = 5;
+  static const _gap = 10.0;
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
@@ -527,62 +528,74 @@ class _ResumeRow extends StatelessWidget {
       children: [
         const _SectionLabel('Chơi tiếp', Icons.play_circle_fill_rounded),
         const SizedBox(height: 10),
-        SizedBox(
-          height: 66,
-          child: ListView.separated(
-            clipBehavior: Clip.none,
-            scrollDirection: Axis.horizontal,
-            itemCount: games.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, i) {
-              final g = games[i];
-              final colors = Candy.forId(g.id);
-              return _Hoverable(
-                scale: 1.08,
-                child: Pressable(
-                  semanticLabel: 'Chơi tiếp ${g.title}',
-                  borderRadius: 18,
-                  onTap: () => context.go('/play/${g.id}'),
-                  child: Ink(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: colors,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Candy.gold, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Candy.deep(colors),
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        GameLogo(id: g.id, size: 40),
-                        const SizedBox(width: 10),
-                        Text(
-                          g.title,
-                          style: t.titleSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
+        LayoutBuilder(
+          builder: (context, box) {
+            // The rong deu nhau, khong vuot qua be rong cua noi dung.
+            final fit = ((box.maxWidth + _gap) / (150 + _gap)).floor();
+            final perRow = fit.clamp(1, _maxPerRow);
+            final w = (box.maxWidth - _gap * (perRow - 1)) / perRow;
+            return Wrap(
+              spacing: _gap,
+              runSpacing: _gap,
+              children: [
+                for (final g in games)
+                  SizedBox(
+                    width: w,
+                    height: 66,
+                    child: _Hoverable(
+                      scale: 1.05,
+                      child: Pressable(
+                        semanticLabel: 'Chơi tiếp ${g.title}',
+                        borderRadius: 18,
+                        onTap: () => context.go('/play/${g.id}'),
+                        child: Ink(
+                          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: Candy.forId(g.id),
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: Candy.gold, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Candy.deep(Candy.forId(g.id)),
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              GameLogo(id: g.id, size: 40),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    g.title,
+                                    style: t.titleSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.white,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.white,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -605,33 +618,53 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget chip(int i, GameCategory c, {required bool compact}) => CandyButton(
+      onPressed: () => onChanged(c),
+      colors: _palette[i % _palette.length],
+      dim: c != value,
+      radius: 18,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 14, vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(c.icon, size: compact ? 16 : 18),
+          SizedBox(width: compact ? 4 : 6),
+          Flexible(
+            child: Text(
+              c.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: compact ? const TextStyle(fontSize: 13) : null,
+            ),
+          ),
+        ],
+      ),
+    );
+    final cats = GameCategory.values.indexed.toList();
+    // Dien thoai: cac tab chia deu chieu ngang, khong tran ra ngoai.
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            for (final (i, c) in cats) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(child: chip(i, c, compact: true)),
+            ],
+          ],
+        ),
+      );
+    }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          for (final (i, c) in GameCategory.values.indexed)
+          for (final (i, c) in cats)
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: CandyButton(
-                onPressed: () => onChanged(c),
-                colors: _palette[i % _palette.length],
-                dim: c != value,
-                radius: 18,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(c.icon, size: 18),
-                    const SizedBox(width: 6),
-                    Text(c.label),
-                  ],
-                ),
-              ),
+              child: chip(i, c, compact: false),
             ),
         ],
       ),

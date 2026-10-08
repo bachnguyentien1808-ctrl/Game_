@@ -11,11 +11,12 @@ import 'package:puzzle_hub/games/sudoku/presentation/sudoku_burst.dart';
 class _Look {
   const _Look(this.colors, {this.fg});
 
-  /// null = o trong: khong ve vien o, de lo nen xanh dam cua khung.
   final List<Color>? colors;
   final Color? fg;
 }
 
+/// O trong: tam kinh mo de nhin ra luoi 9x9 tren nen xanh dam cua khung.
+const _emptyTile = [Color(0x40FFFFFF), Color(0x26FFFFFF)];
 const _white = [Color(0xFFFFFFFF), Color(0xFFE4ECF8)];
 const _lightBlue = [Color(0xFFE6F3FF), Color(0xFFB4D6F7)];
 const _peerFilled = [Color(0xFF9CCBFF), Color(0xFF6FAEF0)];
@@ -105,6 +106,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                       for (var r = 0; r < 9; r++)
                         Expanded(
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               for (var c = 0; c < 9; c++)
                                 Expanded(
@@ -264,7 +266,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
     if (hintSet.contains(i)) {
       return _Look(filled ? _hintTint : _hintEmpty, fg: filled ? _ink : null);
     }
-    if (!filled) return const _Look(null);
+    if (!filled) return const _Look(_emptyTile);
     return _Look(game.isGiven(i) ? _white : _lightBlue);
   }
 }
@@ -517,8 +519,8 @@ class _GridPainter extends CustomPainter {
     final cell = size.width / 9;
     final p = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const Color(0xFFBFD6FF).withValues(alpha: 0.55);
+      ..strokeWidth = 2.4
+      ..color = const Color(0xFFFFD27A).withValues(alpha: 0.85);
     for (var br = 0; br < 3; br++) {
       for (var bc = 0; bc < 3; bc++) {
         canvas.drawRRect(
@@ -528,8 +530,8 @@ class _GridPainter extends CustomPainter {
               br * 3 * cell,
               3 * cell,
               3 * cell,
-            ).deflate(0.7),
-            const Radius.circular(7),
+            ).deflate(1.2),
+            const Radius.circular(8),
           ),
           p,
         );

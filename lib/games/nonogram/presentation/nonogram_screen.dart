@@ -6,7 +6,8 @@ import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_progress.dart';
 import 'package:puzzle_hub/games/nonogram/presentation/nonogram_play.dart';
@@ -121,39 +122,45 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          actions: const [
-            ScoreChip(),
-            HelpAction(gameId: 'nonogram'),
-          ],
-          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-          title: const Text('Nonogram'),
+          actions: const [ScoreChip(), HubMenuAction()],
+          automaticallyImplyLeading: false,
         ),
         body: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: [
-                GlassPanel(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: GlassStat(
-                          icon: Icons.emoji_events_outlined,
-                          colors: Candy.orange,
-                          text: 'Đã giải $solved/$total tranh',
-                        ),
+            constraints: const BoxConstraints(maxWidth: 940),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              // Tat ca nam chung trong mot khoi, ten game + mui ten o goc trai.
+              child: GameBlock(
+                expand: true,
+                title: 'Nonogram',
+                onBack: () => context.go(_store.homeRoute),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: GlassStat(
+                              icon: Icons.emoji_events_outlined,
+                              colors: Candy.orange,
+                              text: 'Đã giải $solved/$total tranh',
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _CandyBar(value: solved / total, height: 12),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                      _CandyBar(value: solved / total, height: 12),
-                    ],
-                  ),
+                    ),
+                    for (final size in nonogramPackSizes)
+                      ..._pack(context, size),
+                  ],
                 ),
-                for (final size in nonogramPackSizes) ..._pack(context, size),
-              ],
+              ),
             ),
           ),
         ),
@@ -167,8 +174,8 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
     final colors = Candy.palettes[size % Candy.palettes.length];
     return [
       const SizedBox(height: 18),
-      GlassPanel(
-        padding: const EdgeInsets.all(12),
+      Padding(
+        padding: const EdgeInsets.all(4),
         child: Column(
           children: [
             Row(
@@ -187,7 +194,9 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
             const SizedBox(height: 14),
             LayoutBuilder(
               builder: (context, box) {
-                final w = (box.maxWidth - 20) / 3;
+                // Khoi rong thi chia 4 cot cho the khong qua to.
+                final cols = box.maxWidth >= 720 ? 4 : 3;
+                final w = (box.maxWidth - 10.0 * (cols - 1)) / cols;
                 return Wrap(
                   spacing: 10,
                   runSpacing: 12,

@@ -8,7 +8,8 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
 
 /// Che do thao tac: to o, danh dau X, hoac di chuyen/phong to.
@@ -346,153 +347,184 @@ class _NonogramPlayState extends State<NonogramPlay>
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
-            leading: BackButton(onPressed: _back),
-            title: Text('${_pic.name} ${_n}x$_n'),
-            actions: [
-              const ScoreChip(),
-              const HelpAction(gameId: 'nonogram'),
-              IconButton(
-                tooltip: 'Hoàn tác',
-                icon: const Icon(Icons.undo),
-                onPressed: _g.canUndo && !_won ? _undo : null,
-              ),
-              IconButton(
-                tooltip: 'Làm lại bước',
-                icon: const Icon(Icons.redo),
-                onPressed: _g.canRedo && !_won ? _redo : null,
-              ),
-              IconButton(
-                tooltip: 'Bắt đầu lại',
-                icon: const Icon(Icons.refresh),
-                onPressed: _restart,
-              ),
-            ],
+            actions: const [ScoreChip(), HubMenuAction()],
           ),
           body: Stack(
             children: [
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                    child: GlassBar(
-                      children: [
-                        GlassStat(
-                          icon: Icons.timer_outlined,
-                          text: formatSeconds(_seconds),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 1000,
+                    maxHeight: 920,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 2, 6, 10),
+                    child: GameBlock(
+                      actions: [
+                        Tooltip(
+                          message: 'Hoàn tác',
+                          child: CandyButton(
+                            dim: !(_g.canUndo && !_won),
+                            circle: true,
+                            padding: const EdgeInsets.all(7),
+                            onPressed: _g.canUndo && !_won ? _undo : null,
+                            child: const Icon(Icons.undo, size: 24),
+                          ),
                         ),
-                        GlassStat(
-                          icon: Icons.close_rounded,
-                          colors: Candy.red,
-                          text: '${_g.mistakes}',
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Làm lại bước',
+                          child: CandyButton(
+                            colors: Candy.indigo,
+                            dim: !(_g.canRedo && !_won),
+                            circle: true,
+                            padding: const EdgeInsets.all(7),
+                            onPressed: _g.canRedo && !_won ? _redo : null,
+                            child: const Icon(Icons.redo, size: 24),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'Ván mới',
+                          child: CandyButton(
+                            colors: Candy.green,
+                            circle: true,
+                            padding: const EdgeInsets.all(7),
+                            onPressed: _restart,
+                            child: const Icon(Icons.refresh_rounded, size: 24),
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned.fill(child: _board(context)),
-                        if (_toastText.isNotEmpty)
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            child: IgnorePointer(
-                              child: _LineToast(
-                                key: ValueKey(_toastId),
-                                text: _toastText,
-                              ),
+                      expand: true,
+                      title: '${_pic.name} ${_n}x$_n',
+                      onBack: _back,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 4, 0, 0),
+                            child: GlassBar(
+                              children: [
+                                GlassStat(
+                                  icon: Icons.timer_outlined,
+                                  text: formatSeconds(_seconds),
+                                ),
+                                GlassStat(
+                                  icon: Icons.close_rounded,
+                                  colors: Candy.red,
+                                  text: '${_g.mistakes}',
+                                ),
+                              ],
                             ),
                           ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 14),
-                    child: GlassPanel(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              _toolButton(
-                                NonogramTool.fill,
-                                Icons.square_rounded,
-                                'Tô',
-                                Candy.purple,
-                              ),
-                              const SizedBox(width: 8),
-                              _toolButton(
-                                NonogramTool.mark,
-                                Icons.close,
-                                'X',
-                                Candy.red,
-                              ),
-                              const SizedBox(width: 8),
-                              _toolButton(
-                                NonogramTool.move,
-                                Icons.open_with,
-                                'Xem',
-                                Candy.teal,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CandyButton(
-                                onPressed: () =>
-                                    setState(() => _check = !_check),
-                                colors: Candy.green,
-                                dim: !_check,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 7,
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.rule, size: 16),
-                                    SizedBox(width: 4),
-                                    Text('Kiểm lỗi'),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Tooltip(
-                                message: 'Gợi ý: lộ một ô đúng',
-                                child: CandyButton(
-                                  onPressed: _g.hintsLeft > 0 && !_won
-                                      ? _hint
-                                      : null,
-                                  colors: Candy.orange,
-                                  dim: !(_g.hintsLeft > 0 && !_won),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 7,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.lightbulb_outline,
-                                        size: 16,
+                          Expanded(
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Positioned.fill(child: _board(context)),
+                                if (_toastText.isNotEmpty)
+                                  Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: IgnorePointer(
+                                      child: _LineToast(
+                                        key: ValueKey(_toastId),
+                                        text: _toastText,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text('${_g.hintsLeft}'),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 4, 0, 4),
+                            child: GlassPanel(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    children: [
+                                      _toolButton(
+                                        NonogramTool.fill,
+                                        Icons.square_rounded,
+                                        'Tô',
+                                        Candy.purple,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _toolButton(
+                                        NonogramTool.mark,
+                                        Icons.close,
+                                        'X',
+                                        Candy.red,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _toolButton(
+                                        NonogramTool.move,
+                                        Icons.open_with,
+                                        'Xem',
+                                        Candy.teal,
+                                      ),
                                     ],
                                   ),
-                                ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      CandyButton(
+                                        onPressed: () =>
+                                            setState(() => _check = !_check),
+                                        colors: Candy.green,
+                                        dim: !_check,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 7,
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.rule, size: 16),
+                                            SizedBox(width: 4),
+                                            Text('Kiểm lỗi'),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Tooltip(
+                                        message: 'Gợi ý: lộ một ô đúng',
+                                        child: CandyButton(
+                                          onPressed: _g.hintsLeft > 0 && !_won
+                                              ? _hint
+                                              : null,
+                                          colors: Candy.orange,
+                                          dim: !(_g.hintsLeft > 0 && !_won),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 7,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.lightbulb_outline,
+                                                size: 16,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text('${_g.hintsLeft}'),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
               Positioned.fill(
                 child: WinBanner(
@@ -537,20 +569,25 @@ class _NonogramPlayState extends State<NonogramPlay>
   Widget _board(BuildContext context) {
     final rowClues = _g.puzzle.rowClues;
     final colClues = _g.puzzle.colClues;
-    final maxRow = rowClues.fold<int>(1, (m, e) => max(m, e.length));
     final maxCol = colClues.fold<int>(1, (m, e) => max(m, e.length));
+    // Do rong that cua goi y hang (theo don vi co chu): chu so + khoang trang.
+    final rowUnits = rowClues.fold<double>(1, (m, e) {
+      final digits = e.fold<int>(0, (a, v) => a + '$v'.length);
+      return max(m, digits * 0.58 + (e.length - 1) * 0.3);
+    });
     return LayoutBuilder(
       builder: (context, box) {
-        final availW = box.maxWidth - 16 - 32;
-        final availH = box.maxHeight - 16 - 32;
+        final availW = box.maxWidth - 16;
+        final availH = box.maxHeight - 16;
+        // Goi y khong con chua thua cho: luoi + goi y sat nhau, can giua o.
         var cell = min(
-          (availW - 6) / (_n + maxRow * 0.62),
-          (availH - 6) / (_n + maxCol * 0.9),
+          (availW - 14) / (_n + rowUnits * 0.46),
+          (availH - 10) / (_n + maxCol * 0.46 * 1.15),
         );
-        cell = cell.clamp(18.0, 44.0);
-        final clueW = maxRow * cell * 0.62 + 6;
-        final clueH = maxCol * cell * 0.9 + 6;
+        cell = cell.clamp(18.0, 120.0);
         final fs = cell * 0.46;
+        final clueW = rowUnits * fs + 14;
+        final clueH = maxCol * fs * 1.15 + 10;
 
         final grid = Listener(
           key: const ValueKey('nono-grid'),
@@ -736,6 +773,7 @@ class _NonogramPlayState extends State<NonogramPlay>
             ),
         ],
       ),
+      softWrap: false,
       style: TextStyle(fontSize: fs, fontWeight: weight, height: 1.1),
     );
   }
